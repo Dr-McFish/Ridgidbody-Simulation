@@ -41,7 +41,7 @@ struct contact_list{
 };
 
 //borrows an array of colliders and returns a list of contacts
-struct contact_list* collision_detectoion(struct collider* coliders);
+struct contact_list* collision_detectoion(int count, struct collider* coliders);
 void copy_collider(struct collider& source, struct collider& dest);
 
 #endif
