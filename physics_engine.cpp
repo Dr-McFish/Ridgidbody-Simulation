@@ -99,7 +99,7 @@ void integration_step(struct physics_system& system) {
 		compute_derived1(body);
 	}
 	// Collision detction
-	struct contact_list* contacts = collision_detectoion(system.colliders);
+	struct contact_list* contacts = collision_detectoion(system.ridgidbody_count, system.colliders);
 	visualise_collisions(system, contacts);
 	
 	// TODO : Contact resolution
