@@ -28,7 +28,7 @@ struct ridgidbody {
 	Eigen::Vector3f torque;
 
 	//optional
-	struct rendering::mesh mesh;
+	struct rendering::mesh* mesh;
 
 };
 

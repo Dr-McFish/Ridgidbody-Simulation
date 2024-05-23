@@ -1,5 +1,6 @@
 #include "physics_engine.h"
 
+#include <cstddef>
 #include <cstdlib>
 #include <eigen3/Eigen/Dense>
 #include <eigen3/Eigen/Geometry>
@@ -70,13 +71,37 @@ void add_imovablbe(struct physics_system& system, Eigen::Vector3f x_initial, col
 	last_ridgidbody.inv_mass = 0;
 }
 
+// blue - no collisions
+// yellow - in contact
+// red - penetration (bad theoreticly)
+void visualise_collisions(struct physics_system& system, struct contact_list* contacts) {
+	const glm::vec3 blue = glm::vec3(0.1, 0.1, 0.6);
+	const glm::vec3 yellow = glm::vec3(0.1, 0.1, 0.6);
+	const glm::vec3 red = glm::vec3(0.1, 0.1, 0.6);
+	for (size_t i = 0; i < system.ridgidbody_count; i++) {
+		if(NULL != system.ridgidbodyies[i].mesh) {
+			system.ridgidbodyies[i].mesh->mesh->setSurfaceColor(blue);
+		}
+	}
+
+	while (contacts != NULL) {
+		const glm::vec3 coloring = contacts->penetration ? red : yellow;
+		system.ridgidbodyies[contacts->solid1_id].mesh->mesh->setSurfaceColor(coloring);
+		
+		contacts = contacts->next;
+	}
+}
+
 void integration_step(struct physics_system& system) {
 	for(size_t i = 0; i < system.ridgidbody_count; i++) {
 		struct ridgidbody body = system.ridgidbodyies[i];
 		compute_force_and_torque1(body, system.timestep_seconds);
 		compute_derived1(body);
 	}
-	// TODO : Collision detction
+	// Collision detction
+	struct contact_list* contacts = collision_detectoion(system.colliders);
+	visualise_collisions(system, contacts);
+	
 	// TODO : Contact resolution
 
 	for(size_t i = 0; i < system.ridgidbody_count; i++) {
@@ -101,4 +126,6 @@ void initialize_rigidbody(struct ridgidbody& r, float mass_kg, Eigen::Matrix3f I
 	//  Computed quantities
 	r.force =  Eigen::Vector3f::Zero();
 	r.torque = Eigen::Vector3f::Zero();
+
+	r.mesh = NULL;
 }
