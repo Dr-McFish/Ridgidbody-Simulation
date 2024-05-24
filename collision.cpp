@@ -1,6 +1,8 @@
 #include "collision.h"
 #include <assert.h>
+#include <cstring>
 #include <eigen3/Eigen/src/Core/Matrix.h>
+#include <iostream>
 #include "algebra_utils.h"
 
 
@@ -96,13 +98,12 @@ struct contact_list* sphere_half_space_collision_detectoion(struct sphere_colide
 	const Eigen::Vector3f relative_pos = sphere_pos - half_space_pos;
 	const float normal_projection = dot_product(relative_pos, half_space.normal);
 
-	//printf("AAAAA\n");
-
-	if ( normal_projection > sphere.radius ) {
-	//	printf("BBB\n");
+	if ( normal_projection > +sphere.radius ) {
 		// No collision
 		return NULL;
 	}
+	// std::cout << sphere_pos << std::endl;
+	// std::cout << half_space_pos << std::endl;
 	struct contact_list* ret = (struct contact_list*)malloc(sizeof(struct contact_list));
 
 	ret->contact_normal = half_space.normal;
@@ -116,17 +117,6 @@ struct contact_list* sphere_half_space_collision_detectoion(struct sphere_colide
 	return ret; 
 }
 
-void copy_collider(struct collider& source, struct collider& dest) {
-	switch(source.type) {
-	  
-	  case COLIDER_SPHERE:
-		dest.u.sphere_colider = source.u.sphere_colider;
-		break;
-	  case  COLIDER_HALF_SPACE:
-		dest.u.sphere_colider = source.u.sphere_colider;
-		break;
-	  default:
-		assert(false); // NOT IMPLEMENTED
-		break;
-	}
+void copy_collider(struct collider* source, struct collider* dest) {
+	memcpy(dest, source, sizeof(struct collider));
 }

@@ -1,4 +1,5 @@
 
+#include <cassert>
 #include <eigen3/Eigen/Dense>
 #include <eigen3/Eigen/src/Core/Matrix.h>
 #include <polyscope/polyscope.h>
@@ -59,23 +60,22 @@ int main() {
 	struct rendering::mesh square = rendering::create_square("plane1");
 	square.scale = 10.f;
 	system.ridgidbodyies[1].mesh = &square;
-	
+
 	//if desired, set up a userCallback to add ImGui UI elements
 
+	
+	
 	while(true) {
 
 		//full_integration_step1(test_bodyl, 1./60.);
-		full_integration_step1(system.ridgidbodyies[0], 1./60.);
+		full_integration_step1(system.ridgidbodyies[0], 1./30.);
 		physys_render_update(system);
+		
 		auto contacts = collision_detectoion(system.ridgidbody_count, system.colliders);
-		if(NULL != contacts) {
-			printf("4\n");
-		}
 		visualise_collisions(system, contacts);
 		free(contacts);
-		
-		//rendering::update_mesh(test_cube, test_bodyl.x, test_bodyl.Q);
-		// std::cout << system.ridgidbodyies[0].x << std::endl;
+
+		//std::cout << system.ridgidbodyies[0].x << std::endl;
 		polyscope::frameTick(); // renders one UI frame, returns immediately
 	}
 }

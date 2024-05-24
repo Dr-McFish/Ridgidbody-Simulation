@@ -48,6 +48,6 @@ void free_contact_list(struct contact_list* c);
 
 //borrows an array of colliders and returns a list of contacts
 struct contact_list* collision_detectoion(int count, struct collider* coliders);
-void copy_collider(struct collider& source, struct collider& dest);
+void copy_collider(struct collider* source, struct collider* dest);
 
 #endif
