@@ -41,11 +41,15 @@ struct contact_list* collision_detectoion(int count, struct collider* colliders)
 				collision_maybe = sphere_half_space_collision_detectoion(colliders[j].u.sphere_colider,		*colliders[j].pos,
 																		 colliders[i].u.half_space_colider,*colliders[i].pos);
 			} // else detection not supported.
-
+			else 
+			{
+				collision_maybe = NULL;
+			}
 			// add collision to list
 			if(collision_maybe != NULL) {
 				collision_maybe->solid1_id = i;
-				collision_maybe->solid1_id = j;
+				collision_maybe->solid2_id = j;
+				
 
 				collision_maybe->next = ret;
 				ret = collision_maybe;
@@ -92,8 +96,10 @@ struct contact_list* sphere_half_space_collision_detectoion(struct sphere_colide
 	const Eigen::Vector3f relative_pos = sphere_pos - half_space_pos;
 	const float normal_projection = dot_product(relative_pos, half_space.normal);
 
+	//printf("AAAAA\n");
 
-	if ( normal_projection > 0 ) {
+	if ( normal_projection > sphere.radius ) {
+	//	printf("BBB\n");
 		// No collision
 		return NULL;
 	}
@@ -102,7 +108,7 @@ struct contact_list* sphere_half_space_collision_detectoion(struct sphere_colide
 	ret->contact_normal = half_space.normal;
 	ret->contact_pos = sphere_pos - sphere.radius*half_space.normal;
 
-	ret->penetration_depth = -normal_projection;	
+	ret->penetration_depth = sphere.radius - normal_projection;	
 	ret->penetration = ret->penetration_depth > penetration_epsilon;
 	// ret->solid1_id;
 	// ret->solid2_id;

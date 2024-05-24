@@ -92,8 +92,8 @@ void add_imovablbe(struct physics_system& system, Eigen::Vector3f x_initial, col
 // red - penetration (bad theoreticly)
 void visualise_collisions(struct physics_system& system, struct contact_list* contacts) {
 	const glm::vec3 blue = glm::vec3(0.1, 0.1, 0.6);
-	const glm::vec3 yellow = glm::vec3(0.1, 0.1, 0.6);
-	const glm::vec3 red = glm::vec3(0.1, 0.1, 0.6);
+	const glm::vec3 yellow = glm::vec3(0.6, 0.6, 0.0);
+	const glm::vec3 red = glm::vec3(0.8, 0.1, 0.1);
 	for (size_t i = 0; i < system.ridgidbody_count; i++) {
 		if(NULL != system.ridgidbodyies[i].mesh) {
 			system.ridgidbodyies[i].mesh->mesh->setSurfaceColor(blue);
@@ -105,6 +105,8 @@ void visualise_collisions(struct physics_system& system, struct contact_list* co
 		if(contacts->penetration) {printf("red\n");} else {printf("yellow\n");} 
 		if(NULL != system.ridgidbodyies[contacts->solid1_id].mesh){
 			system.ridgidbodyies[contacts->solid1_id].mesh->mesh->setSurfaceColor(coloring);
+			printf("%d\n", contacts->solid2_id);
+			system.ridgidbodyies[contacts->solid2_id].mesh->mesh->setSurfaceColor(coloring);
 		}
 		
 		contacts = contacts->next;
