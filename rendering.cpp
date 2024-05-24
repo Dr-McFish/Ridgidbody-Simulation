@@ -35,7 +35,6 @@ struct rendering::mesh rendering::create_square(std::string name) {
 
 	square.scale = 0.5;
 	square.vertices = Eigen::MatrixXf(4, 3);
-	printf("patate0\n");
 	square.vertices <<  1.0,  0.0,  1.0,  
 					   -1.0,  0.0,  1.0,
 					   -1.0,  0.0, -1.0,
@@ -52,11 +51,11 @@ struct rendering::mesh rendering::create_square(std::string name) {
 
 void rendering::update_mesh(rendering::mesh& mesh, Eigen::Vector3f position, Eigen::Quaternionf rotaion) {
 	Eigen::MatrixXf new_vertices(mesh.vertices.rows(), mesh.vertices.cols());
-		for(int i = 0; i < mesh.vertices.rows(); i++) {
-			Eigen::Vector3f vertex(mesh.vertices(i, 0), mesh.vertices(i, 1), mesh.vertices(i, 2));
-			Eigen::Vector3f new_vertex = position + mesh.scale* rotaion._transformVector(vertex);
+	for(int i = 0; i < mesh.vertices.rows(); i++) {
+		Eigen::Vector3f vertex(mesh.vertices(i, 0), mesh.vertices(i, 1), mesh.vertices(i, 2));
+		Eigen::Vector3f new_vertex = position + mesh.scale* rotaion._transformVector(vertex);
 
-			new_vertices(i, Eigen::all) << new_vertex(0), new_vertex(1), new_vertex(2);
-		}
-		mesh.mesh->updateVertexPositions(new_vertices);
+		new_vertices(i, Eigen::all) << new_vertex(0), new_vertex(1), new_vertex(2);
+	}
+	mesh.mesh->updateVertexPositions(new_vertices);
 }

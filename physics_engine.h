@@ -43,10 +43,15 @@ struct physics_system {
 	// TODO: champs de forces
 };
 
-void add_body(struct physics_system& system, float mass_kg, Eigen::Matrix3f Inertia_body, Eigen::Vector3f x_initial, collider c);
-void add_imovablbe(struct physics_system& system, Eigen::Vector3f x_initial, collider c);
+void add_body(struct physics_system& system, float mass_kg, Eigen::Matrix3f Inertia_body, Eigen::Vector3f x_initial, struct collider& c);
+void add_imovablbe(struct physics_system& system, Eigen::Vector3f x_initial, collider& c);
 void full_integration_step1(struct ridgidbody& body, float delta_t);
+void integration_step(struct physics_system& system);
+void physys_render_update(struct physics_system& system);
 
+
+void physys_render_update(struct physics_system& system);
+void visualise_collisions(struct physics_system& system, struct contact_list* contacts);
 // struct contact_list* detect_collisions(struct physics_system);
 // void integration_step(struct physics_system& system);
 

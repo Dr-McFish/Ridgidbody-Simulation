@@ -1,6 +1,7 @@
 #include "physics_engine.h"
 
 #include <cstddef>
+#include <cstdio>
 #include <cstdlib>
 #include <eigen3/Eigen/Dense>
 #include <eigen3/Eigen/Geometry>
@@ -8,6 +9,7 @@
 #include <eigen3/Eigen/src/Geometry/Quaternion.h>
 #include "collision.h"
 #include "quaternion_helper.h"
+#include "rendering.h"
 
 
 // Gravity
@@ -42,30 +44,44 @@ void full_integration_step1(struct ridgidbody& body, float delta_t) {
 	integration_only_step1(body, delta_t);
 }
 
-void add_body(struct physics_system& system, float mass_kg, Eigen::Matrix3f Inertia_body, Eigen::Vector3f x_initial, struct collider collider) {
+void add_body(struct physics_system& system, float mass_kg, Eigen::Matrix3f Inertia_body, Eigen::Vector3f x_initial, struct collider& collider) {
 	system.ridgidbody_count += 1;
 
-	system.colliders = (struct collider*)realloc(system.colliders, system.ridgidbody_count * sizeof(struct collider));
-	system.ridgidbodyies = (struct ridgidbody*)realloc(system.ridgidbodyies, system.ridgidbody_count * sizeof(struct collider));
+	printf("realoc size %ld\n", system.ridgidbody_count);
+	{
+		// struct collider* tmp = (struct collider*)calloc(system.ridgidbody_count, sizeof(struct collider));
+		// memcpy(tmp, system.colliders, (system.ridgidbody_count -1) * sizeof(struct collider*));
+		// free(system.colliders);
+		// system.colliders = tmp;
+		//assert(NULL != system.colliders);
+		system.colliders = (struct collider*)realloc(system.colliders, system.ridgidbody_count * sizeof(struct collider));
+	}
 
-	system.colliders[system.ridgidbody_count -1].type = collider.type;
-	copy_collider(collider, system.colliders[system.ridgidbody_count-1]);
+	//system.ridgidbodyies = (struct ridgidbody*)realloc(system.ridgidbodyies, system.ridgidbody_count * sizeof(struct ridgidbody));
+	{
+		// struct ridgidbody* tmp = (struct ridgidbody*)calloc(system.ridgidbody_count, sizeof(struct ridgidbody));
+		// memcpy(tmp, system.ridgidbodyies, (system.ridgidbody_count -1) * sizeof(struct ridgidbody*));
+		// free(system.ridgidbodyies);
+		// system.ridgidbodyies = tmp;
+		//assert(NULL != system.ridgidbodyies);
+		system.ridgidbodyies = (struct ridgidbody*)realloc(system.ridgidbodyies ,system.ridgidbody_count* sizeof(struct ridgidbody));
+	}
 
-	initialize_rigidbody(system.ridgidbodyies[system.ridgidbody_count -1], 
+	struct collider& last_collider = system.colliders[system.ridgidbody_count -1];
+	last_collider.type = collider.type;
+	copy_collider(collider, last_collider);
+
+	struct ridgidbody& last_ridgidbody = system.ridgidbodyies[system.ridgidbody_count -1];
+	last_collider.pos = &last_ridgidbody.x;
+
+	initialize_rigidbody(last_ridgidbody, 
 							mass_kg, Inertia_body, x_initial);
 }
 
-void add_imovablbe(struct physics_system& system, Eigen::Vector3f x_initial, collider collider) {
-	system.ridgidbody_count += 1;
-	
-	system.colliders = (struct collider*)realloc(system.colliders, system.ridgidbody_count * sizeof(struct collider));
-	system.ridgidbodyies = (struct ridgidbody*)realloc(system.ridgidbodyies, system.ridgidbody_count * sizeof(struct collider));
+void add_imovablbe(struct physics_system& system, Eigen::Vector3f x_initial, collider& collider) {
+	add_body(system, 1.0, Eigen::Matrix3f::Identity(), x_initial, collider);
 
-	system.colliders[system.ridgidbody_count -1].type = collider.type;
-	copy_collider(collider, system.colliders[system.ridgidbody_count-1]);
-	
 	struct ridgidbody& last_ridgidbody = system.ridgidbodyies[system.ridgidbody_count -1];
-	initialize_rigidbody(last_ridgidbody, 1.0, Eigen::Matrix3f::Identity(), x_initial);
 	// immovable
 	last_ridgidbody.Ibody_inv = Eigen::Matrix3f::Zero();
 	last_ridgidbody.inv_mass = 0;
@@ -86,7 +102,10 @@ void visualise_collisions(struct physics_system& system, struct contact_list* co
 
 	while (contacts != NULL) {
 		const glm::vec3 coloring = contacts->penetration ? red : yellow;
-		system.ridgidbodyies[contacts->solid1_id].mesh->mesh->setSurfaceColor(coloring);
+		if(contacts->penetration) {printf("red\n");} else {printf("yellow\n");} 
+		if(NULL != system.ridgidbodyies[contacts->solid1_id].mesh){
+			system.ridgidbodyies[contacts->solid1_id].mesh->mesh->setSurfaceColor(coloring);
+		}
 		
 		contacts = contacts->next;
 	}
@@ -101,6 +120,7 @@ void integration_step(struct physics_system& system) {
 	// Collision detction
 	struct contact_list* contacts = collision_detectoion(system.ridgidbody_count, system.colliders);
 	visualise_collisions(system, contacts);
+	free_contact_list(contacts);
 	
 	// TODO : Contact resolution
 
@@ -128,4 +148,11 @@ void initialize_rigidbody(struct ridgidbody& r, float mass_kg, Eigen::Matrix3f I
 	r.torque = Eigen::Vector3f::Zero();
 
 	r.mesh = NULL;
+}
+
+void physys_render_update(struct physics_system& system) {
+	for(size_t i = 0; i < system.ridgidbody_count; i++) {
+		struct ridgidbody& ridgidbody = system.ridgidbodyies[i];
+		rendering::update_mesh(*ridgidbody.mesh, ridgidbody.x, ridgidbody.Q);
+	}
 }
