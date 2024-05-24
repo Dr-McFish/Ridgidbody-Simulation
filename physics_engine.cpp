@@ -1,12 +1,15 @@
 #include "physics_engine.h"
 
+#include <cassert>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <eigen3/Eigen/Dense>
 #include <eigen3/Eigen/Geometry>
 #include <eigen3/Eigen/src/Core/Matrix.h>
 #include <eigen3/Eigen/src/Geometry/Quaternion.h>
+#include "algebra_utils.h"
 #include "collision.h"
 #include "quaternion_helper.h"
 #include "rendering.h"
@@ -118,10 +121,120 @@ void visualise_collisions(struct physics_system& system, struct contact_list* co
 	}
 }
 
-void integration_step(struct physics_system& system) {
+void calculate_contact_velocity(struct physics_system& system, struct contact_list* contacts) {
+	if(contacts == NULL) {
+		return;
+	}
+
+	struct ridgidbody& body1 = system.ridgidbodyies[contacts->solid1_id];
+	struct ridgidbody& body2 = system.ridgidbodyies[contacts->solid2_id];
+
+	Eigen::Vector3f relative_pos1 = contacts->contact_pos - body1.x;
+	Eigen::Vector3f relative_pos2 = contacts->contact_pos - body2.x;
+
+	Eigen::Vector3f contact_velocity1 = body1.v + cross_product(body1.omega, relative_pos1);
+	Eigen::Vector3f contact_velocity2 = body2.v + cross_product(body2.omega, relative_pos2);
+
+	contacts->contact_velocity = contact_velocity2 - contact_velocity1;
+	contacts->colliding_contact = dot_product(contacts->contact_velocity, contacts->contact_normal) < -system.minimum_nonpentration_velocity;
+
+	calculate_contact_velocity(system, contacts->next);
+}
+
+void existsts_penetration_colliding_contact(struct contact_list* contacts, bool* E_colliding_contact, bool* E_penetration) {
+	assert(NULL != E_colliding_contact);
+	assert(NULL != E_penetration);\
+
+	*E_colliding_contact = false;
+	*E_penetration = false;
+	
+	while (NULL != contacts && !(*E_colliding_contact && *E_penetration)) {
+		
+		*E_colliding_contact =	*E_colliding_contact || contacts->colliding_contact;
+		*E_penetration = 		*E_penetration 		 || contacts->penetration;
+
+		contacts = contacts->next;
+	}
+}
+
+void bisective_integration_step(struct physics_system& system, float sub_timestep, int maxdepth) {
+	printf("depth: %d\n", maxdepth);
+	if(system.stoped) {
+		return;
+	}
+	else if(maxdepth <= 0) {
+		fprintf(stderr, "Warning: maximum bisection depth reached! consder augmenting collision epsilon or decresing speed\n");
+		system.stoped = true;
+		return;
+	}
+
+	struct ridgidbody* old_state = (struct ridgidbody*)calloc(system.ridgidbody_count, sizeof(struct ridgidbody));
+	memcpy(old_state, system.ridgidbodyies, system.ridgidbody_count * sizeof(struct ridgidbody));
+
+	// Integration
+
 	for(size_t i = 0; i < system.ridgidbody_count; i++) {
-		struct ridgidbody body = system.ridgidbodyies[i];
-		compute_force_and_torque1(body, system.timestep_seconds);
+		struct ridgidbody& body = system.ridgidbodyies[i];
+		compute_force_and_torque1(body, sub_timestep);
+		compute_derived1(body);
+	}
+
+
+	for(size_t i = 0; i < system.ridgidbody_count; i++) {
+		struct ridgidbody& body = system.ridgidbodyies[i];
+		integration_only_step1(body, sub_timestep);
+	}
+
+	// Collision/Penetration detction
+	{
+		struct contact_list* contacts = collision_detectoion(system.ridgidbody_count, system.colliders);
+		bool E_colliding_contact, E_penetration;
+		existsts_penetration_colliding_contact(contacts, &E_colliding_contact, &E_penetration);
+		
+		if (NULL != contacts ){
+			printf("penetration_depth : %2.3f\n", contacts->penetration_depth);
+		} else {
+			printf("no contact!\n");
+			std::cout << system.ridgidbodyies[0].x << std::endl;
+		}
+		
+		if(E_penetration)
+		{
+			// take one substep back
+	
+			free(system.ridgidbodyies); // restore old state
+			system.ridgidbodyies = old_state;
+			// AGH!
+			for(size_t i = 0; i < system.ridgidbody_count; i++) {
+				system.colliders[i].pos = &system.ridgidbodyies[i].x;
+			}
+
+			bisective_integration_step(system, 0.5 * sub_timestep, maxdepth -1);
+		} 
+		else if(E_colliding_contact)
+		{
+			// We are done
+			system.stoped = true;
+			free(old_state);
+			visualise_collisions(system, contacts);
+		}
+		else
+		{ 
+			// take one substep forward
+			bisective_integration_step(system, 0.5 * sub_timestep, maxdepth -1);
+			free(old_state);
+		}
+
+		//visualise_collisions(system, contacts);
+		free_contact_list(contacts);
+	}
+
+}
+
+void integration_step0(struct physics_system& system) {
+	for(size_t i = 0; i < system.ridgidbody_count; i++) {
+		struct ridgidbody& body = system.ridgidbodyies[i];
+		compute_force_and_torque1(body, system.base_timestep_seconds);
 		compute_derived1(body);
 	}
 	// Collision detction
@@ -132,10 +245,65 @@ void integration_step(struct physics_system& system) {
 	// TODO : Contact resolution
 
 	for(size_t i = 0; i < system.ridgidbody_count; i++) {
-		struct ridgidbody body = system.ridgidbodyies[i];
-		integration_only_step1(body, system.timestep_seconds);
+		struct ridgidbody& body = system.ridgidbodyies[i];
+		integration_only_step1(body, system.base_timestep_seconds);
 	}
 }
+
+void integration_step(struct physics_system& system) {
+	struct ridgidbody* old_state = (struct ridgidbody*)calloc(system.ridgidbody_count, sizeof(struct ridgidbody));
+	memcpy(old_state, system.ridgidbodyies, system.ridgidbody_count * sizeof(struct ridgidbody));
+
+	for(size_t i = 0; i < system.ridgidbody_count; i++) {
+		struct ridgidbody& body = system.ridgidbodyies[i];
+		compute_force_and_torque1(body, system.base_timestep_seconds);
+		compute_derived1(body);
+	}
+
+
+	for(size_t i = 0; i < system.ridgidbody_count; i++) {
+		struct ridgidbody& body = system.ridgidbodyies[i];
+		integration_only_step1(body, system.base_timestep_seconds);
+	}
+
+	
+	// Collision detction
+	struct contact_list* contacts = collision_detectoion(system.ridgidbody_count, system.colliders);
+	visualise_collisions(system, contacts);
+
+	bool E_colliding_contact, E_penetration;
+	existsts_penetration_colliding_contact(contacts, &E_colliding_contact, &E_penetration);
+	if (E_penetration)
+	{
+		
+		//restore old state:
+		free(system.ridgidbodyies);
+		system.ridgidbodyies = old_state;
+		/// AGH!
+		for(size_t i = 0; i < system.ridgidbody_count; i++) {
+			system.colliders[i].pos = &system.ridgidbodyies[i].x;
+		}
+		
+		bisective_integration_step(system, 0.5 * system.base_timestep_seconds, 32);
+		assert(system.stoped);
+
+		free_contact_list(contacts);
+		contacts = collision_detectoion(system.ridgidbody_count, system.colliders);
+		visualise_collisions(system, contacts);
+		free_contact_list(contacts);
+	}
+	else 
+	{
+		visualise_collisions(system, contacts);
+		free_contact_list(contacts);
+		free(old_state);
+		old_state = NULL;
+	}
+	
+	// TODO : Contact resolution
+
+}
+
 
 void initialize_rigidbody(struct ridgidbody& r, float mass_kg, Eigen::Matrix3f Inertia_body, Eigen::Vector3f x_initial) {
 	r.inv_mass = 1/mass_kg;
@@ -162,4 +330,20 @@ void physys_render_update(struct physics_system& system) {
 		struct ridgidbody& ridgidbody = system.ridgidbodyies[i];
 		rendering::update_mesh(*ridgidbody.mesh, ridgidbody.x, ridgidbody.Q);
 	}
+}
+
+struct physics_system initialise_system() {
+	struct physics_system system;
+	system.ridgidbody_count = 0;
+	system.ridgidbodyies = NULL;
+	system.colliders = NULL;
+	system.base_timestep_seconds = 1.f/30.f;
+	system.remaining_seconds_until_next_timestep = 0.f;
+
+	// 1/8 de distance nessesaire pour brisser le contact en 1 pas.
+	system.minimum_nonpentration_velocity = (0.125f * penetration_epsilon_m) / system.base_timestep_seconds;
+
+	//system.contact_count = 0;
+	//system.contacts = NULL;
+	return system;
 }

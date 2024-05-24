@@ -23,6 +23,16 @@ void free_contact_list(struct contact_list* c) {
 struct contact_list* collision_detectoion(int count, struct collider* colliders) {
 	struct contact_list* ret = NULL;
 
+	auto add_collision_to_list = [&](int idx1, int idx2, struct contact_list* collision_maybe) {
+		if(collision_maybe != NULL) {
+			collision_maybe->solid1_id = idx1;
+			collision_maybe->solid2_id = idx2;
+			
+			collision_maybe->next = ret;
+			ret = collision_maybe;
+		}
+	};
+
 	// Very naive O(n^2)
 	for(int i =0; i < count; i++) {
 		for(int j =0; j < i; j++) {
@@ -32,30 +42,22 @@ struct contact_list* collision_detectoion(int count, struct collider* colliders)
 			{
 				collision_maybe = sphere_sphere_collision_detectoion(colliders[i].u.sphere_colider, *colliders[i].pos,
 																	 colliders[j].u.sphere_colider, *colliders[j].pos);
+				add_collision_to_list(i,j, collision_maybe);
 			} 
 			else if(colliders[i].type == COLIDER_SPHERE && colliders[j].type == COLIDER_HALF_SPACE)
 			{
 				collision_maybe = sphere_half_space_collision_detectoion(colliders[i].u.sphere_colider,		*colliders[i].pos,
 																		 colliders[j].u.half_space_colider,*colliders[j].pos);
+				add_collision_to_list(i,j, collision_maybe);
 			}
 			else if(colliders[j].type == COLIDER_SPHERE && colliders[i].type == COLIDER_HALF_SPACE)
 			{
 				collision_maybe = sphere_half_space_collision_detectoion(colliders[j].u.sphere_colider,		*colliders[j].pos,
 																		 colliders[i].u.half_space_colider,*colliders[i].pos);
-			} // else detection not supported.
-			else 
-			{
-				collision_maybe = NULL;
-			}
-			// add collision to list
-			if(collision_maybe != NULL) {
-				collision_maybe->solid1_id = i;
-				collision_maybe->solid2_id = j;
-				
-
-				collision_maybe->next = ret;
-				ret = collision_maybe;
-			}
+				// NOTE the inversion of j and i
+				add_collision_to_list(j,i, collision_maybe); 
+			} 
+			// else detection not supported.
 		}
 	}
 
@@ -82,7 +84,7 @@ struct contact_list* sphere_sphere_collision_detectoion(struct sphere_colider& s
 	ret->contact_normal.normalize();
 	ret->penetration_depth = fabsf(collision_distance) - (sphere1_pos - sphere2_pos).norm();
 	assert(ret->penetration_depth >= 0.);
-	ret->penetration = ret->penetration_depth > penetration_epsilon;
+	ret->penetration = ret->penetration_depth > penetration_epsilon_m;
 	
 	// ret->solid1_id;
 	// ret->solid2_id;
@@ -97,8 +99,9 @@ struct contact_list* sphere_half_space_collision_detectoion(struct sphere_colide
 															struct half_space_colider& half_space,	Eigen::Vector3f half_space_pos){
 	const Eigen::Vector3f relative_pos = sphere_pos - half_space_pos;
 	const float normal_projection = dot_product(relative_pos, half_space.normal);
+	const float penetration_depth = sphere.radius - normal_projection;
 
-	if ( normal_projection > +sphere.radius ) {
+	if ( penetration_depth < -penetration_epsilon_m ) {
 		// No collision
 		return NULL;
 	}
@@ -109,8 +112,10 @@ struct contact_list* sphere_half_space_collision_detectoion(struct sphere_colide
 	ret->contact_normal = half_space.normal;
 	ret->contact_pos = sphere_pos - sphere.radius*half_space.normal;
 
-	ret->penetration_depth = sphere.radius - normal_projection;	
-	ret->penetration = ret->penetration_depth > penetration_epsilon;
+	ret->penetration_depth = penetration_depth;	
+	ret->penetration = penetration_depth > penetration_epsilon_m;
+	// invarient: penetration_depth \in [-penetration_epsilon, +penetration_epsilon]
+
 	// ret->solid1_id;
 	// ret->solid2_id;
 

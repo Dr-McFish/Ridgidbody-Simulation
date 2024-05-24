@@ -38,10 +38,22 @@ struct physics_system {
 	size_t ridgidbody_count;
 	struct ridgidbody* ridgidbodyies;
 	struct collider* colliders; // `rigidbodies[k]` is assosiated with collider `colliders[k]`
-	float timestep_seconds;
+	
+	float base_timestep_seconds;
+	float remaining_seconds_until_next_timestep;
+	float minimum_nonpentration_velocity;
+
+
+	bool stoped;
+
+	// TODO Active contacts 
+	// size_t contact_count;
+	// contact_list* contacts;
 
 	// TODO: champs de forces
 };
+
+struct physics_system initialise_system();
 
 void add_body(struct physics_system& system, float mass_kg, Eigen::Matrix3f Inertia_body, Eigen::Vector3f x_initial, struct collider& c);
 void add_imovablbe(struct physics_system& system, Eigen::Vector3f x_initial, collider& c);
