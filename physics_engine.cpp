@@ -251,6 +251,10 @@ void integration_step0(struct physics_system& system) {
 }
 
 void integration_step(struct physics_system& system) {
+	if(system.stoped) {
+		return;
+	}
+
 	struct ridgidbody* old_state = (struct ridgidbody*)calloc(system.ridgidbody_count, sizeof(struct ridgidbody));
 	memcpy(old_state, system.ridgidbodyies, system.ridgidbody_count * sizeof(struct ridgidbody));
 
@@ -340,6 +344,7 @@ struct physics_system initialise_system() {
 	system.base_timestep_seconds = 1.f/30.f;
 	system.remaining_seconds_until_next_timestep = 0.f;
 
+	system.stoped = false;
 	// 1/8 de distance nessesaire pour brisser le contact en 1 pas.
 	system.minimum_nonpentration_velocity = (0.125f * penetration_epsilon_m) / system.base_timestep_seconds;
 

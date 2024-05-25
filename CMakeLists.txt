@@ -18,8 +18,8 @@ set( CMAKE_EXPORT_COMPILE_COMMANDS 1 ) # Emit a compile flags file to support co
 if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" OR "${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
   # using Clang (linux or apple) or GCC
   message("Using clang/gcc compiler flags")
-  SET(BASE_CXX_FLAGS "-std=c++11 -Wall -Wextra -g3")
-  SET(DISABLED_WARNINGS " -Wno-unused-parameter -Wno-unused-variable -Wno-unused-function -Wno-deprecated-declarations -Wno-missing-braces")
+  SET(BASE_CXX_FLAGS "-std=c++11 -Wall -Wextra -g3 -fsanitize=address")
+  SET(DISABLED_WARNINGS "-Wclass-memaccess -Wno-unused-parameter -Wno-unused-variable -Wno-unused-function -Wno-deprecated-declarations -Wno-missing-braces")
   SET(TRACE_INCLUDES " -H -Wno-error=unused-command-line-argument")
 
   if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
@@ -29,7 +29,7 @@ if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" OR "${CMAKE_CXX_COMPILER_ID}" STR
   elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     SET(BASE_CXX_FLAGS "${BASE_CXX_FLAGS} -fmax-errors=5")
     message("Setting gcc-specific options")
-    SET(DISABLED_WARNINGS "${DISABLED_WARNINGS} -Wno-maybe-uninitialized -Wno-format-zero-length -Wno-unused-but-set-parameter -Wno-unused-but-set-variable")
+    SET(DISABLED_WARNINGS "${DISABLED_WARNINGS} -Wclass-memaccess -Wno-maybe-uninitialized -Wno-format-zero-length -Wno-unused-but-set-parameter -Wno-unused-but-set-variable")
   endif()
 
 
