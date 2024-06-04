@@ -380,7 +380,7 @@ void calculate_contact_velocity(struct physics_system& system, struct contact_li
 
 	contacts->contact_velocity = contact_velocity_j - contact_velocity_i;
 	contacts->contact_velocity_projected = dot_product(contacts->contact_velocity, contacts->contact_normal);
-	contacts->colliding_contact = contacts->contact_velocity_projected > system.minimum_nonpentration_velocity;
+	contacts->colliding_contact = contacts->contact_velocity_projected > 0;
 
 	calculate_contact_velocity(system, contacts->next);
 }
@@ -494,7 +494,7 @@ void integration_step0(struct physics_system& system) {
 void resolve_colliding_contacts(struct physics_system& system, struct contact_list* contacts) {
 	if(NULL == contacts) {
 		return;
-	} else if(contacts->contact_velocity_projected >= -system.minimum_nonpentration_velocity) {
+	} else if(contacts->colliding_contact) {
 		// not colliding
 
 		resolve_colliding_contacts(system, contacts->next);
