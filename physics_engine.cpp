@@ -22,7 +22,7 @@
 
 // Gravity
 static const Eigen::Vector3f g = 9.81 * Eigen::Vector3f(0, -1, 0);
-static const float restitution_factor = 0.98;
+static const float restitution_factor = 0.60;
 
 // In pace update the derived quantities
 void compute_derived1(struct ridgidbody& body) {
@@ -369,18 +369,18 @@ void calculate_contact_velocity(struct physics_system& system, struct contact_li
 		return;
 	}
 
-	struct ridgidbody& body1 = system.ridgidbodyies[contacts->bodyi_id];
-	struct ridgidbody& body2 = system.ridgidbodyies[contacts->bodyj_id];
+	struct ridgidbody& body_i = system.ridgidbodyies[contacts->bodyi_id];
+	struct ridgidbody& body_j = system.ridgidbodyies[contacts->bodyj_id];
 
-	Eigen::Vector3f relative_pos1 = contacts->contact_pos - body1.x;
-	Eigen::Vector3f relative_pos2 = contacts->contact_pos - body2.x;
+	Eigen::Vector3f relative_pos_i = contacts->contact_pos - body_i.x;
+	Eigen::Vector3f relative_pos_j = contacts->contact_pos - body_j.x;
 
-	Eigen::Vector3f contact_velocity1 = body1.v + cross_product(body1.omega, relative_pos1);
-	Eigen::Vector3f contact_velocity2 = body2.v + cross_product(body2.omega, relative_pos2);
+	Eigen::Vector3f contact_velocity_i = body_i.v + cross_product(body_i.omega, relative_pos_i);
+	Eigen::Vector3f contact_velocity_j = body_j.v + cross_product(body_j.omega, relative_pos_j);
 
-	contacts->contact_velocity = contact_velocity2 - contact_velocity1;
+	contacts->contact_velocity = contact_velocity_j - contact_velocity_i;
 	contacts->contact_velocity_projected = dot_product(contacts->contact_velocity, contacts->contact_normal);
-	contacts->colliding_contact = contacts->contact_velocity_projected < -system.minimum_nonpentration_velocity;
+	contacts->colliding_contact = contacts->contact_velocity_projected > system.minimum_nonpentration_velocity;
 
 	calculate_contact_velocity(system, contacts->next);
 }
@@ -397,17 +397,19 @@ void existsts_penetration_colliding_contact(struct contact_list* contacts, bool*
 		*E_colliding_contact =	*E_colliding_contact || contacts->colliding_contact;
 		*E_penetration = 		*E_penetration 		 || contacts->penetration;
 
+		printf("penetration %f", contacts->penetration_depth);
+
 		contacts = contacts->next;
 	}
 }
 
 void bisective_integration_step(struct physics_system& system, float sub_timestep, int maxdepth) {
-	//printf("depth: %d\n", maxdepth);
+	printf("depth: %d\n", maxdepth);
 	if(system.stoped) {
 		return;
 	}
 	else if(maxdepth <= 0) {
-		//fprintf(stderr, "Warning: maximum bisection depth reached! consder augmenting collision epsilon or decresing speed\n");
+		fprintf(stderr, "Warning: maximum bisection depth reached! consder augmenting collision epsilon or decresing speed\n");
 		//system.stoped = true;
 		return;
 	}
@@ -419,29 +421,8 @@ void bisective_integration_step(struct physics_system& system, float sub_timeste
 
 	for(size_t i = 0; i < system.ridgidbody_count; i++) {
 		struct ridgidbody& body = system.ridgidbodyies[i];
-		compute_force_and_torque1(body);
 		compute_derived1(body);
-	}
-	struct contact_list* contact_list = collision_detectoion(system.ridgidbody_count, system.colliders);
-	calculate_contact_velocity(system, contact_list);
-
-	bool E_colliding_contact, E_penetration;
-	existsts_penetration_colliding_contact(contact_list, &E_colliding_contact, &E_penetration);
-	assert(!E_penetration);
-
-	if (E_colliding_contact) {
-		int num_contacts;
-		struct contact_list* contact_table = list_to_array(contact_list, &num_contacts);
-		
-		//printf("forces before: ");
-		//std::cout << system.ridgidbodyies[0].force << std::endl;
-		//compute_contact_forces(system, contact_table, num_contacts, sub_timestep);
-
-		//printf("forces after: ");
-		//std::cout << system.ridgidbodyies[0].force << std::endl;
-		free(contact_table);
-	} else {
-		free_contact_list(contact_list);
+		compute_force_and_torque1(body);
 	}
 
 	for(size_t i = 0; i < system.ridgidbody_count; i++) {
@@ -456,14 +437,15 @@ void bisective_integration_step(struct physics_system& system, float sub_timeste
 		bool E_colliding_contact, E_penetration;
 		existsts_penetration_colliding_contact(contacts, &E_colliding_contact, &E_penetration);
 		
-		if (NULL != contacts ){
-		//	printf("penetration_depth : %2.3f\n", contacts->penetration_depth);
-		} else {
-		//	printf("no contact!\n");
-			//std::cout << system.ridgidbodyies[0].x << std::endl;
+		if(E_colliding_contact)
+		{
+			// We are done
+			system.remaining_seconds_until_next_timestep -= sub_timestep;
+			//system.stoped = true;
+			free(old_state);
+			//visualise_collisions(system, contacts);
 		}
-		
-		if(E_penetration)
+		else if(E_penetration)
 		{
 			// take one substep back
 	
@@ -476,14 +458,6 @@ void bisective_integration_step(struct physics_system& system, float sub_timeste
 
 			bisective_integration_step(system, 0.5 * sub_timestep, maxdepth -1);
 		} 
-		else if(E_colliding_contact)
-		{
-			// We are done
-			system.remaining_seconds_until_next_timestep -= sub_timestep;
-			//system.stoped = true;
-			free(old_state);
-			visualise_collisions(system, contacts);
-		}
 		else
 		{ 
 			// take one substep forward
@@ -525,7 +499,6 @@ void resolve_colliding_contacts(struct physics_system& system, struct contact_li
 
 		resolve_colliding_contacts(system, contacts->next);
 	}
-	//printf("boop\n");
 
 	struct ridgidbody& body_a = system.ridgidbodyies[contacts->bodyi_id];
 	struct ridgidbody& body_b = system.ridgidbodyies[contacts->bodyj_id];
@@ -570,8 +543,8 @@ void integration_step(struct physics_system& system) {
 
 		for(size_t i = 0; i < system.ridgidbody_count; i++) {
 			struct ridgidbody& body = system.ridgidbodyies[i];
-			compute_force_and_torque1(body);
 			compute_derived1(body);
+			compute_force_and_torque1(body);
 		}
 
 		
@@ -579,18 +552,18 @@ void integration_step(struct physics_system& system) {
 			struct ridgidbody& body = system.ridgidbodyies[i];
 			integration_only_step1(body, system.remaining_seconds_until_next_timestep);
 		}
-
+		compute_derived_all(system);
 
 		// Collision detction
 		struct contact_list* contacts = collision_detectoion(system.ridgidbody_count, system.colliders);
 		calculate_contact_velocity(system, contacts);
 		
-		//visualise_collisions(system, contacts);
 
 		bool E_colliding_contact, E_penetration;
 		existsts_penetration_colliding_contact(contacts, &E_colliding_contact, &E_penetration);
 		if (E_penetration)
 		{
+			printf(" boop\n");
 			
 			//restore old state:
 			free(system.ridgidbodyies);
@@ -605,21 +578,21 @@ void integration_step(struct physics_system& system) {
 
 			//debug
 			struct contact_list* contacts = collision_detectoion(system.ridgidbody_count, system.colliders);
-			compute_derived_all(system);
 			calculate_contact_velocity(system, contacts);
 			visualise_collisions(system, contacts);
+
+			bool E_colliding_contact, E_penetration;
+			existsts_penetration_colliding_contact(contacts, &E_colliding_contact, &E_penetration);
+			assert(!E_penetration);
+			assert(E_colliding_contact);
 			
 			// Bouce ressolution
 			resolve_colliding_contacts(system, contacts);
 			calculate_contact_velocity(system, contacts);
 			
-
-
-			
-			// bool E_colliding_contact, E_penetration;
-			// existsts_penetration_colliding_contact(contacts, &E_colliding_contact, &E_penetration);
-			// assert(!E_penetration);
-			// assert(!E_colliding_contact);
+			existsts_penetration_colliding_contact(contacts, &E_colliding_contact, &E_penetration);
+			assert(!E_penetration);
+			assert(!E_colliding_contact);
 
 			free_contact_list(contacts);
 			//debug
@@ -688,7 +661,7 @@ struct physics_system initialise_system() {
 
 	system.stoped = false;
 	// 1/8 de distance nessesaire pour brisser le contact en 1 pas.
-	system.minimum_nonpentration_velocity = (0.125f * penetration_epsilon_m) / system.base_timestep_seconds;
+	system.minimum_nonpentration_velocity = (0.5f * penetration_epsilon_m) / system.base_timestep_seconds;
 
 	//system.contact_count = 0;
 	//system.contacts = NULL;

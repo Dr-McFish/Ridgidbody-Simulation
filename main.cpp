@@ -46,6 +46,7 @@ int main() {
 		if(!system.stoped) {
 			integration_step(system);
 			physys_render_update(system);
+			printf("step\n");
 		}
 		
 		//auto contacts = collision_detectoion(system.ridgidbody_count, system.colliders);
