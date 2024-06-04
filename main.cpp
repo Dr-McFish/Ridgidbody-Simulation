@@ -1,4 +1,5 @@
 
+#include <cstdio>
 #include <eigen3/Eigen/Dense>
 #include <eigen3/Eigen/src/Core/Matrix.h>
 #include <polyscope/polyscope.h>
@@ -49,6 +50,7 @@ int main() {
 			printf("step\n");
 		}
 		
+		printf("%f\n", system.ridgidbodyies[0].x.y());
 		//auto contacts = collision_detectoion(system.ridgidbody_count, system.colliders);
 		//visualise_collisions(system, contacts);
 		//free(contacts);

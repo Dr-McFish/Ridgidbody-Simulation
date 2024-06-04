@@ -19,8 +19,8 @@ struct linear_complementarity_problem {
 	Eigen::SparseMatrix<float> A;
 
 	Eigen::VectorXf b;
-	Eigen::VectorXf lamba_min;
-	Eigen::VectorXf lamba_max;
+	Eigen::VectorXf lambba_min;
+	Eigen::VectorXf lambda_max;
 };
 
 //returns lambda
