@@ -2,6 +2,7 @@
 #define COMPLEMENTARITY_SOLVER_H
 
 #include <eigen3/Eigen/Dense>
+#include <eigen3/Eigen/Sparse>
 #include <eigen3/Eigen/src/Core/Matrix.h>
 #include <eigen3/Eigen/src/Core/util/Constants.h>
 
@@ -15,7 +16,7 @@ struct linear_complementarity_problem {
 
 	// ussually n = 3K 
 
-	Eigen::MatrixXf A;
+	Eigen::SparseMatrix<float> A;
 
 	Eigen::VectorXf b;
 	Eigen::VectorXf lamba_min;

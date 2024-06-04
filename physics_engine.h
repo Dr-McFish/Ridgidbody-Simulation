@@ -50,7 +50,7 @@ struct physics_system {
 	// size_t contact_count;
 	// contact_list* contacts;
 
-	// TODO: champs de forces
+	// TODO: champs de forces, frotements fluides
 };
 
 struct physics_system initialise_system();

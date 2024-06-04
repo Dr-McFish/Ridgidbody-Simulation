@@ -1,8 +1,9 @@
 #include "collision.h"
 #include <assert.h>
+#include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <eigen3/Eigen/src/Core/Matrix.h>
-#include <iostream>
 #include "algebra_utils.h"
 
 
@@ -25,8 +26,8 @@ struct contact_list* collision_detectoion(int count, struct collider* colliders)
 
 	auto add_collision_to_list = [&](int idx1, int idx2, struct contact_list* collision_maybe) {
 		if(collision_maybe != NULL) {
-			collision_maybe->solid1_id = idx1;
-			collision_maybe->solid2_id = idx2;
+			collision_maybe->bodyi_id = idx1;
+			collision_maybe->bodyj_id = idx2;
 			
 			collision_maybe->next = ret;
 			ret = collision_maybe;
@@ -58,6 +59,19 @@ struct contact_list* collision_detectoion(int count, struct collider* colliders)
 				add_collision_to_list(j,i, collision_maybe); 
 			} 
 			// else detection not supported.
+
+			if (NULL != collision_maybe) {
+				Eigen::Matrix3f rotaion_90x;
+				rotaion_90x <<	1, 0, 0,
+								0, 0, 1,
+								0,-1, 0;
+				
+				collision_maybe->contact_tangent1 = rotaion_90x * collision_maybe->contact_normal;
+				collision_maybe->contact_tangent1.normalize();
+
+				collision_maybe->contact_tangent2 = cross_product(collision_maybe->contact_normal, collision_maybe->contact_tangent1)
+											.normalized();
+			}
 		}
 	}
 
@@ -88,6 +102,8 @@ struct contact_list* sphere_sphere_collision_detectoion(struct sphere_colider& s
 	
 	// ret->solid1_id;
 	// ret->solid2_id;
+	// ret->tangent1;
+	// ret->tangent2;
 
 	return ret; 
 }
@@ -118,10 +134,41 @@ struct contact_list* sphere_half_space_collision_detectoion(struct sphere_colide
 
 	// ret->solid1_id;
 	// ret->solid2_id;
-
+	// ret->tangent1;
+	// ret->tangent2;
 	return ret; 
 }
 
 void copy_collider(struct collider* source, struct collider* dest) {
 	memcpy(dest, source, sizeof(struct collider));
 }
+
+int list_length(struct contact_list* list) {
+	if(NULL == list) {
+		return 0;
+	} else {
+		return 1 + list_length(list->next);
+	}
+}
+
+void parcours_coppie(struct contact_list* list, struct contact_list* array, int pos) {
+	if(pos < 0) {
+		return;
+	} else {
+		assert(NULL != list);
+		array[pos] = *list;
+		array[pos].next = NULL;
+		parcours_coppie(list->next, array, pos - 1);
+		free(list);
+	}
+}
+
+struct contact_list* list_to_array(struct contact_list* list, int* adr_taille) {
+	*adr_taille = list_length(list);
+
+	struct contact_list* array = (struct contact_list*)calloc(*adr_taille, sizeof(struct contact_list));
+	parcours_coppie(list, array, *adr_taille -1);
+	
+	return array;
+}
+

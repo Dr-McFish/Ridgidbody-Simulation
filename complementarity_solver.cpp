@@ -22,13 +22,13 @@ Eigen::VectorXf pgs_solve(struct linear_complementarity_problem* problem, int it
 			lambda(i) = -problem->b(i);
 			//sum
 			for(int j = 0; j < i; j++) {
-				lambda(i) -= problem->A(i, j) * lambda(j);
+				lambda(i) -= problem->A.coeff(i, j) * lambda(j);
 			}
 			for(int j = i+1; j < system_size; j++) {
-				lambda(i) -= problem->A(i, j) * lambda(j);
+				lambda(i) -= problem->A.coeff(i, j) * lambda(j);
 			}
 
-			lambda(i) = lambda(i) / problem->A(i, i);
+			lambda(i) = lambda(i) / problem->A.coeff(i, i);
 	
 		}
 		// Projection
@@ -37,5 +37,6 @@ Eigen::VectorXf pgs_solve(struct linear_complementarity_problem* problem, int it
 		}
 
 	}
-
+	
+	return lambda;
 }

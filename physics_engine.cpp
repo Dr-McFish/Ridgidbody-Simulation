@@ -1,22 +1,28 @@
 #include "physics_engine.h"
 
 #include <cassert>
+#include <cmath>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <eigen3/Eigen/Dense>
+#include <eigen3/Eigen/Sparse>
 #include <eigen3/Eigen/Geometry>
 #include <eigen3/Eigen/src/Core/Matrix.h>
+#include <eigen3/Eigen/src/Core/util/Constants.h>
 #include <eigen3/Eigen/src/Geometry/Quaternion.h>
+#include <eigen3/Eigen/src/SparseCore/SparseMatrix.h>
+#include <iostream>
 #include "algebra_utils.h"
 #include "collision.h"
 #include "quaternion_helper.h"
 #include "rendering.h"
-
+#include "complementarity_solver.h"
 
 // Gravity
 static const Eigen::Vector3f g = 9.81 * Eigen::Vector3f(0, -1, 0);
+static const float restitution_factor = 0.6;
 
 // In pace update the derived quantities
 void compute_derived1(struct ridgidbody& body) {
@@ -26,8 +32,239 @@ void compute_derived1(struct ridgidbody& body) {
 	body.omega = body.Iinv * body.L;
 }
 
+Eigen::SparseMatrix<float> Jmatrix(physics_system& system, contact_list* contact_table, int num_contacts){
+	const int K = num_contacts;
+	const int N = system.ridgidbody_count;
+
+	Eigen::SparseMatrix<float> J(3*K, 6*N);
+	std::vector<Eigen::Triplet<float>> tripletListJ;
+	tripletListJ.reserve(K*2*3*3);
+
+	for (int k = 0; k < K; k++) {
+		const contact_list& contact_k = contact_table[k];
+
+
+		// if it goes the wrong direction, n_k might be wrong way
+		const Eigen::Vector3f n_k = contact_k.contact_normal;
+		const Eigen::Vector3f t_k1 = contact_k.contact_tangent1;
+		const Eigen::Vector3f t_k2 = contact_k.contact_tangent2;
+
+		const Eigen::Vector3f r_ki = contact_k.contact_pos - system.ridgidbodyies[contact_k.bodyi_id].x;
+		const Eigen::Vector3f r_ki_x_n  = cross_product(r_ki, n_k);
+		const Eigen::Vector3f r_ki_x_t1 = cross_product(r_ki, t_k1);
+		const Eigen::Vector3f r_ki_x_t2 = cross_product(r_ki, t_k2);
+
+		const Eigen::Vector3f r_kj = contact_k.contact_pos - system.ridgidbodyies[contact_k.bodyj_id].x;		
+		const Eigen::Vector3f r_kj_x_n  = cross_product(r_kj, n_k);
+		const Eigen::Vector3f r_kj_x_t1 = cross_product(r_kj, t_k1);
+		const Eigen::Vector3f r_kj_x_t2 = cross_product(r_kj, t_k2);
+		
+		Eigen::Matrix3f Ji_klin;
+		Ji_klin << -n_k(0) , -n_k(1) , -n_k(2) ,
+				   -t_k1(0), -t_k1(1), -t_k1(2),
+				   -t_k2(0), -t_k2(1), -t_k2(2);
+
+		Eigen::Matrix3f Jj_klin;
+		Jj_klin << n_k(0) , n_k(1) , n_k(2) ,
+				   t_k1(0), t_k1(1), t_k1(2),
+				   t_k2(0), t_k2(1), t_k2(2);
+		
+		Eigen::Matrix3f Ji_kang;
+		Ji_kang << -r_ki_x_n (0), -r_ki_x_n (1), -r_ki_x_n (2),
+				   -r_ki_x_t1(0), -r_ki_x_t1(1), -r_ki_x_t1(2),
+				   -r_ki_x_t2(0), -r_ki_x_t2(1), -r_ki_x_t2(2);
+
+		Eigen::Matrix3f Jj_kang;
+		Jj_kang << r_kj_x_n (0), r_kj_x_n (1), r_kj_x_n (2),
+				   r_kj_x_t1(0), r_kj_x_t1(1), r_kj_x_t1(2),
+				   r_kj_x_t2(0), r_kj_x_t2(1), r_kj_x_t2(2);
+		
+		for (int matx = 0; matx < 3; matx++) {
+			for (int maty = 0; maty < 3; maty++) {
+				tripletListJ.push_back(Eigen::Triplet<float>(
+					// i´, j´ J_i´,j´
+					3*k + matx, 6*contact_k.bodyi_id + maty, Ji_klin(matx,maty)
+				));
+
+				tripletListJ.push_back(Eigen::Triplet<float>(
+					// i´, j´ J_i´,j´
+					3*k + matx, 6*contact_k.bodyj_id + maty, Jj_klin(matx,maty)
+				));
+
+				tripletListJ.push_back(Eigen::Triplet<float>(
+					// i´, j´ J_i´,j´
+					3*k + matx, 6*contact_k.bodyi_id + 3 + maty, Ji_kang(matx,maty)
+				));
+
+				tripletListJ.push_back(Eigen::Triplet<float>(
+					// i´, j´ J_i´,j´
+					3*k + matx, 6*contact_k.bodyj_id + 3 + maty, Jj_kang(matx,maty)
+				));
+			}
+		}
+	}
+	J.setFromTriplets(tripletListJ.begin(), tripletListJ.end());
+
+	return J;
+}
+
+Eigen::SparseMatrix<float> generalizedMass_matrix_inv(physics_system& system) {
+	const int N = system.ridgidbody_count;
+
+	std::vector<Eigen::Triplet<float>> tripletListMinv;
+	tripletListMinv.reserve(N*12);
+
+	Eigen::SparseMatrix<float> Minv(6*N, 6*N);
+
+	for(int body_idx = 0; body_idx < N; body_idx++) {
+		
+		// diagonal block
+		for (int repeat = 0; repeat < 3; repeat++) {
+			tripletListMinv.push_back(Eigen::Triplet<float>(
+				// i´, j´ J_i´,j´
+				6*body_idx + repeat, 6*body_idx + repeat, system.ridgidbodyies[body_idx].inv_mass
+			));
+		}
+
+		// Iinv block
+		for (int matx = 0; matx < 3; matx++) {
+			for (int maty = 0; maty < 3; maty++) {
+				tripletListMinv.push_back(Eigen::Triplet<float>(
+				// i´, j´ J_i´,j´
+				6*body_idx + 3 + matx, 6*body_idx + 3 + maty, system.ridgidbodyies[body_idx].Ibody_inv(matx, maty)
+			));
+			}
+		}
+	}
+
+	Minv.setFromTriplets(tripletListMinv.begin(), tripletListMinv.end());
+	return Minv;
+}
+
+Eigen::VectorXf u_generlised_velocity(physics_system& system) {
+	const int N = system.ridgidbody_count;
+
+	Eigen::VectorXf u(6 * N);
+
+	for (int i = 0; i < N; i++) {
+		ridgidbody& body_i = system.ridgidbodyies[i];
+
+		u(6*i     + 0) = body_i.x(0);
+		u(6*i     + 1) = body_i.x(1);
+		u(6*i     + 2) = body_i.x(2);
+		u(6*i + 3 + 0) = body_i.omega(0);
+		u(6*i + 3 + 1) = body_i.omega(1);
+		u(6*i + 3 + 2) = body_i.omega(2);
+	}
+
+	return u;
+}
+
+Eigen::VectorXf forces_ext_generlised(physics_system& system) {
+	const int N = system.ridgidbody_count;
+
+	Eigen::VectorXf forces(6 * N);
+
+	for (int i = 0; i < N; i++) {
+		ridgidbody& body_i = system.ridgidbodyies[i];
+
+		forces(6*i     + 0) = body_i.force(0);
+		forces(6*i     + 1) = body_i.force(1);
+		forces(6*i     + 2) = body_i.force(2);
+		forces(6*i + 3 + 0) = body_i.torque(0);
+		forces(6*i + 3 + 1) = body_i.torque(1);
+		forces(6*i + 3 + 2) = body_i.torque(2);
+	}
+
+	return forces;
+}
+
+// calculates and adds on the contact forces based on (wat) solved LPC
+void lambda_to_forces(physics_system& system, contact_list* contact_table, int K, Eigen::VectorXf lambda) {
+	///std::cout << lambda << std::endl;
+
+	for(int idx = 0; idx < K; idx++) {
+		ridgidbody& body_i = system.ridgidbodyies[contact_table[idx].bodyi_id];
+		ridgidbody& body_j = system.ridgidbodyies[contact_table[idx].bodyj_id];
+
+		Eigen::Vector3f ri = contact_table[idx].contact_pos - body_i.x;
+		Eigen::Vector3f rj = contact_table[idx].contact_pos - body_j.x;
+		
+		// body i on  body j
+		Eigen::Vector3f force_ij = lambda(3*idx   ) * contact_table[idx].contact_normal
+								 + lambda(3*idx +1) * contact_table[idx].contact_tangent1;
+								 + lambda(3*idx +2) * contact_table[idx].contact_tangent2;
+		// force_ji = - force_ij
+
+		Eigen::Vector3f torque_i = cross_product(ri, -force_ij);
+		Eigen::Vector3f torque_j = cross_product(rj,  force_ij);
+
+		// body_i.force  += -force_ij;
+		// body_i.torque += torque_i;
+
+		// body_j.force  += force_ij;
+		// body_j.torque += torque_j;
+	}
+}
+
+// Call once external forces are known and stored in the rigidbodiesr
+// each ellement of the contact table is one long
+void compute_contact_forces(physics_system& system, contact_list* contact_table, int num_contacts, float timestep) {
+	const int K = num_contacts;
+	
+	Eigen::SparseMatrix<float> Minv = generalizedMass_matrix_inv(system);
+	Eigen::SparseMatrix<float> J = Jmatrix(system, contact_table, num_contacts);
+
+	// printf("Jmatrix ar = \n");
+	// std::cout << J.toDense() << std::endl;
+
+	struct linear_complementarity_problem lpc;
+
+	lpc.A = timestep * J * Minv * J.transpose();
+
+	auto u = u_generlised_velocity(system);
+	auto f_ext = forces_ext_generlised(system);
+
+	lpc.b = J * (u + timestep * (Minv * f_ext) );
+
+
+	const float mu_friction_coef = 0;
+	lpc.lamba_min = Eigen::VectorXf(3* K);
+	lpc.lamba_max = Eigen::VectorXf(3* K);
+
+	for (int j = 0; j < K; j++) {
+		lpc.lamba_min(j + 0) = 0;
+		lpc.lamba_min(j + 1) = -mu_friction_coef * 0; // friction at some point maybe
+		lpc.lamba_min(j + 2) = -mu_friction_coef * 0; // friction at some point maybe
+
+		lpc.lamba_max(j + 0) = +INFINITY;
+		lpc.lamba_max(j + 1) = mu_friction_coef * 0; // friction at some point maybe
+		lpc.lamba_max(j + 2) = mu_friction_coef * 0; // friction at some point maybe
+	}
+
+	Eigen::VectorXf lambda = pgs_solve(&lpc, 10);
+
+	// printf("Amatrix = \n");
+	// std::cout << lpc.A.toDense() << std::endl;
+	// printf("b_vec = \n");
+	// std::cout << lpc.b << std::endl;
+
+	// printf("lambda = \n");
+	// std::cout << lambda << std::endl;
+
+	// printf("force_before = \n");
+	// std::cout << system.ridgidbodyies[0].force << std::endl;
+	
+	lambda_to_forces(system, contact_table, K, lambda);
+	
+	// printf("force_after = \n");
+	// std::cout << system.ridgidbodyies[0].force << std::endl;
+
+	//assert(false); // crash
+}
+
 // Only accumulates gravity for now
-void compute_force_and_torque1(struct ridgidbody& body, float delta_t) {
+void compute_force_and_torque1(struct ridgidbody& body) {
 	body.force = g;
 	body.torque = Eigen::Vector3f::Zero();
 }
@@ -42,7 +279,7 @@ void integration_only_step1(struct ridgidbody& body, float delta_t) {
 }
 
 void full_integration_step1(struct ridgidbody& body, float delta_t) {
-	compute_force_and_torque1(body, delta_t);
+	compute_force_and_torque1(body);
 	compute_derived1(body);
 	integration_only_step1(body, delta_t);
 }
@@ -112,9 +349,9 @@ void visualise_collisions(struct physics_system& system, struct contact_list* co
 	while (contacts != NULL) {
 		const glm::vec3 coloring = contacts->penetration ? red : yellow;
 		//if(contacts->penetration) {printf("red\n");} else {printf("yellow\n");} 
-		if(NULL != system.ridgidbodyies[contacts->solid1_id].mesh){
-			system.ridgidbodyies[contacts->solid1_id].mesh->mesh->setSurfaceColor(coloring);
-			system.ridgidbodyies[contacts->solid2_id].mesh->mesh->setSurfaceColor(coloring);
+		if(NULL != system.ridgidbodyies[contacts->bodyi_id].mesh){
+			system.ridgidbodyies[contacts->bodyi_id].mesh->mesh->setSurfaceColor(coloring);
+			system.ridgidbodyies[contacts->bodyj_id].mesh->mesh->setSurfaceColor(coloring);
 		}
 		
 		contacts = contacts->next;
@@ -126,8 +363,8 @@ void calculate_contact_velocity(struct physics_system& system, struct contact_li
 		return;
 	}
 
-	struct ridgidbody& body1 = system.ridgidbodyies[contacts->solid1_id];
-	struct ridgidbody& body2 = system.ridgidbodyies[contacts->solid2_id];
+	struct ridgidbody& body1 = system.ridgidbodyies[contacts->bodyi_id];
+	struct ridgidbody& body2 = system.ridgidbodyies[contacts->bodyj_id];
 
 	Eigen::Vector3f relative_pos1 = contacts->contact_pos - body1.x;
 	Eigen::Vector3f relative_pos2 = contacts->contact_pos - body2.x;
@@ -136,14 +373,15 @@ void calculate_contact_velocity(struct physics_system& system, struct contact_li
 	Eigen::Vector3f contact_velocity2 = body2.v + cross_product(body2.omega, relative_pos2);
 
 	contacts->contact_velocity = contact_velocity2 - contact_velocity1;
-	contacts->colliding_contact = dot_product(contacts->contact_velocity, contacts->contact_normal) < -system.minimum_nonpentration_velocity;
+	contacts->contact_velocity_projected = dot_product(contacts->contact_velocity, contacts->contact_normal);
+	contacts->colliding_contact = contacts->contact_velocity_projected < -system.minimum_nonpentration_velocity;
 
 	calculate_contact_velocity(system, contacts->next);
 }
 
 void existsts_penetration_colliding_contact(struct contact_list* contacts, bool* E_colliding_contact, bool* E_penetration) {
 	assert(NULL != E_colliding_contact);
-	assert(NULL != E_penetration);\
+	assert(NULL != E_penetration);
 
 	*E_colliding_contact = false;
 	*E_penetration = false;
@@ -158,13 +396,13 @@ void existsts_penetration_colliding_contact(struct contact_list* contacts, bool*
 }
 
 void bisective_integration_step(struct physics_system& system, float sub_timestep, int maxdepth) {
-	printf("depth: %d\n", maxdepth);
+	//printf("depth: %d\n", maxdepth);
 	if(system.stoped) {
 		return;
 	}
 	else if(maxdepth <= 0) {
-		fprintf(stderr, "Warning: maximum bisection depth reached! consder augmenting collision epsilon or decresing speed\n");
-		system.stoped = true;
+		//fprintf(stderr, "Warning: maximum bisection depth reached! consder augmenting collision epsilon or decresing speed\n");
+		//system.stoped = true;
 		return;
 	}
 
@@ -175,10 +413,30 @@ void bisective_integration_step(struct physics_system& system, float sub_timeste
 
 	for(size_t i = 0; i < system.ridgidbody_count; i++) {
 		struct ridgidbody& body = system.ridgidbodyies[i];
-		compute_force_and_torque1(body, sub_timestep);
+		compute_force_and_torque1(body);
 		compute_derived1(body);
 	}
+	struct contact_list* contact_list = collision_detectoion(system.ridgidbody_count, system.colliders);
+	calculate_contact_velocity(system, contact_list);
 
+	bool E_colliding_contact, E_penetration;
+	existsts_penetration_colliding_contact(contact_list, &E_colliding_contact, &E_penetration);
+	assert(!E_penetration);
+
+	if (E_colliding_contact) {
+		int num_contacts;
+		struct contact_list* contact_table = list_to_array(contact_list, &num_contacts);
+		
+		//printf("forces before: ");
+		//std::cout << system.ridgidbodyies[0].force << std::endl;
+		compute_contact_forces(system, contact_table, num_contacts, sub_timestep);
+
+		//printf("forces after: ");
+		//std::cout << system.ridgidbodyies[0].force << std::endl;
+		free(contact_table);
+	} else {
+		free_contact_list(contact_list);
+	}
 
 	for(size_t i = 0; i < system.ridgidbody_count; i++) {
 		struct ridgidbody& body = system.ridgidbodyies[i];
@@ -188,14 +446,15 @@ void bisective_integration_step(struct physics_system& system, float sub_timeste
 	// Collision/Penetration detction
 	{
 		struct contact_list* contacts = collision_detectoion(system.ridgidbody_count, system.colliders);
+		calculate_contact_velocity(system, contacts);
 		bool E_colliding_contact, E_penetration;
 		existsts_penetration_colliding_contact(contacts, &E_colliding_contact, &E_penetration);
 		
 		if (NULL != contacts ){
-			printf("penetration_depth : %2.3f\n", contacts->penetration_depth);
+		//	printf("penetration_depth : %2.3f\n", contacts->penetration_depth);
 		} else {
-			printf("no contact!\n");
-			std::cout << system.ridgidbodyies[0].x << std::endl;
+		//	printf("no contact!\n");
+			//std::cout << system.ridgidbodyies[0].x << std::endl;
 		}
 		
 		if(E_penetration)
@@ -214,13 +473,15 @@ void bisective_integration_step(struct physics_system& system, float sub_timeste
 		else if(E_colliding_contact)
 		{
 			// We are done
-			system.stoped = true;
+			system.remaining_seconds_until_next_timestep -= sub_timestep;
+			//system.stoped = true;
 			free(old_state);
 			visualise_collisions(system, contacts);
 		}
 		else
 		{ 
 			// take one substep forward
+			system.remaining_seconds_until_next_timestep -= sub_timestep;
 			bisective_integration_step(system, 0.5 * sub_timestep, maxdepth -1);
 			free(old_state);
 		}
@@ -234,7 +495,7 @@ void bisective_integration_step(struct physics_system& system, float sub_timeste
 void integration_step0(struct physics_system& system) {
 	for(size_t i = 0; i < system.ridgidbody_count; i++) {
 		struct ridgidbody& body = system.ridgidbodyies[i];
-		compute_force_and_torque1(body, system.base_timestep_seconds);
+		compute_force_and_torque1(body);
 		compute_derived1(body);
 	}
 	// Collision detction
@@ -250,61 +511,158 @@ void integration_step0(struct physics_system& system) {
 	}
 }
 
+void resolve_colliding_contacts(struct physics_system& system, struct contact_list* contacts) {
+	if(NULL == contacts) {
+		return;
+	} else if(contacts->contact_velocity_projected >= -system.minimum_nonpentration_velocity) {
+		// not colliding
+
+		resolve_colliding_contacts(system, contacts->next);
+	}
+	//printf("boop\n");
+
+	struct ridgidbody& body_a = system.ridgidbodyies[contacts->bodyi_id];
+	struct ridgidbody& body_b = system.ridgidbodyies[contacts->bodyj_id];
+
+	Eigen::Vector3f relative_pos_a = contacts->contact_pos - body_a.x;
+	Eigen::Vector3f relative_pos_b = contacts->contact_pos - body_b.x;
+
+	//float restitution = (contacts->contact_velocity_projected <= -system.minimum_nonpentration_velocity*4) ?  0.f : restitution_factor;
+
+	float j = -((1.f + restitution_factor) * contacts->contact_velocity_projected)/ 
+			(body_b.inv_mass + body_a.inv_mass
+			 + dot_product(contacts->contact_normal, cross_product(body_a.Iinv * (cross_product(relative_pos_a, contacts->contact_normal)),
+																   relative_pos_a))
+			 + dot_product(contacts->contact_normal, cross_product(body_b.Iinv * (cross_product(relative_pos_b, contacts->contact_normal)),
+																   relative_pos_b))
+			);
+	
+	Eigen::Vector3f impulse = j * contacts->contact_normal;
+
+	body_a.p -= impulse;
+	body_b.p += impulse;
+
+	body_a.L -= cross_product(relative_pos_a, impulse);
+	body_b.L += cross_product(relative_pos_a, impulse);
+
+	compute_derived1(body_a);
+	compute_derived1(body_b);
+
+	resolve_colliding_contacts(system, contacts->next);
+}
+
 void integration_step(struct physics_system& system) {
 	if(system.stoped) {
 		return;
 	}
+	system.remaining_seconds_until_next_timestep = system.base_timestep_seconds;
 
-	struct ridgidbody* old_state = (struct ridgidbody*)calloc(system.ridgidbody_count, sizeof(struct ridgidbody));
-	memcpy(old_state, system.ridgidbodyies, system.ridgidbody_count * sizeof(struct ridgidbody));
-
-	for(size_t i = 0; i < system.ridgidbody_count; i++) {
-		struct ridgidbody& body = system.ridgidbodyies[i];
-		compute_force_and_torque1(body, system.base_timestep_seconds);
-		compute_derived1(body);
-	}
-
-
-	for(size_t i = 0; i < system.ridgidbody_count; i++) {
-		struct ridgidbody& body = system.ridgidbodyies[i];
-		integration_only_step1(body, system.base_timestep_seconds);
-	}
-
-	
-	// Collision detction
-	struct contact_list* contacts = collision_detectoion(system.ridgidbody_count, system.colliders);
-	visualise_collisions(system, contacts);
-
-	bool E_colliding_contact, E_penetration;
-	existsts_penetration_colliding_contact(contacts, &E_colliding_contact, &E_penetration);
-	if (E_penetration)
+	while(system.remaining_seconds_until_next_timestep > 1E-6)
 	{
-		
-		//restore old state:
-		free(system.ridgidbodyies);
-		system.ridgidbodyies = old_state;
-		/// AGH!
+		struct ridgidbody* old_state = (struct ridgidbody*)calloc(system.ridgidbody_count, sizeof(struct ridgidbody));
+		memcpy(old_state, system.ridgidbodyies, system.ridgidbody_count * sizeof(struct ridgidbody));
+
 		for(size_t i = 0; i < system.ridgidbody_count; i++) {
-			system.colliders[i].pos = &system.ridgidbodyies[i].x;
+			struct ridgidbody& body = system.ridgidbodyies[i];
+			compute_force_and_torque1(body);
+			compute_derived1(body);
+		}
+
+		struct contact_list* contact_list = collision_detectoion(system.ridgidbody_count, system.colliders);
+		calculate_contact_velocity(system, contact_list);
+
+		bool E_colliding_contact_pre, E_penetration_pre;
+		existsts_penetration_colliding_contact(contact_list, &E_colliding_contact_pre, &E_penetration_pre);
+		assert(!E_penetration_pre);
+
+		// if(E_colliding_contact_pre) {
+		// 	resolve_colliding_contacts(system, contact_list);
+		// 	calculate_contact_velocity(system, contact_list);
+		// 	existsts_penetration_colliding_contact(contact_list, &E_colliding_contact_pre, &E_penetration_pre);
+		// 	assert(!E_colliding_contact_pre);
+
+		// }
+
+
+		if (NULL != contact_list) {
+			int num_contacts;
+			struct contact_list* contact_table = list_to_array(contact_list, &num_contacts);
+			
+			//printf("forces before: ");
+			//std::cout << system.ridgidbodyies[0].force << std::endl;
+			// compute_contact_forces(system, contact_table, num_contacts, system.remaining_seconds_until_next_timestep);
+
+			//printf("forces after: ");
+			//std::cout << system.ridgidbodyies[0].force << std::endl;
+			free(contact_table);
+		} else {
+			free_contact_list(contact_list);
 		}
 		
-		bisective_integration_step(system, 0.5 * system.base_timestep_seconds, 32);
-		assert(system.stoped);
+		for(size_t i = 0; i < system.ridgidbody_count; i++) {
+			struct ridgidbody& body = system.ridgidbodyies[i];
+			integration_only_step1(body, system.remaining_seconds_until_next_timestep);
+		}
 
+
+		// Collision detction
+		struct contact_list* contacts = collision_detectoion(system.ridgidbody_count, system.colliders);
+		calculate_contact_velocity(system, contacts);
+		
+		//visualise_collisions(system, contacts);
+
+		bool E_colliding_contact, E_penetration;
+		existsts_penetration_colliding_contact(contacts, &E_colliding_contact, &E_penetration);
+		if (E_penetration)
+		{
+			
+			//restore old state:
+			free(system.ridgidbodyies);
+			system.ridgidbodyies = old_state;
+			/// AGH!
+			for(size_t i = 0; i < system.ridgidbody_count; i++) {
+				system.colliders[i].pos = &system.ridgidbodyies[i].x;
+			}
+			
+			bisective_integration_step(system, 0.5 * system.base_timestep_seconds, 10);
+			//assert(system.stoped);
+
+			//debug
+			struct contact_list* contacts = collision_detectoion(system.ridgidbody_count, system.colliders);
+			calculate_contact_velocity(system, contacts);
+			//visualise_collisions(system, contacts);
+			
+			// Bouce ressolution
+			resolve_colliding_contacts(system, contacts);
+			calculate_contact_velocity(system, contacts);
+
+			visualise_collisions(system, contacts);
+
+			
+			bool E_colliding_contact, E_penetration;
+			existsts_penetration_colliding_contact(contacts, &E_colliding_contact, &E_penetration);
+			//assert(!E_penetration);
+			//assert(!E_colliding_contact);
+
+			free_contact_list(contacts);
+			//debug
+
+		}
+		else 
+		{
+			system.remaining_seconds_until_next_timestep = 0.f;
+			visualise_collisions(system, contacts);
+			if(E_colliding_contact) {
+				resolve_colliding_contacts(system, contacts);
+			}
+
+
+			free(old_state);
+			old_state = NULL;
+		}
+		
 		free_contact_list(contacts);
-		contacts = collision_detectoion(system.ridgidbody_count, system.colliders);
-		visualise_collisions(system, contacts);
-		free_contact_list(contacts);
-	}
-	else 
-	{
-		visualise_collisions(system, contacts);
-		free_contact_list(contacts);
-		free(old_state);
-		old_state = NULL;
-	}
-	
-	// TODO : Contact resolution
+	}	
 
 }
 
