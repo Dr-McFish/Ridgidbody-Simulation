@@ -604,7 +604,8 @@ void integration_step(struct physics_system& system) {
 			//assert(system.stoped);
 
 			//debug
-			//struct contact_list* contacts = collision_detectoion(system.ridgidbody_count, system.colliders);
+			struct contact_list* contacts = collision_detectoion(system.ridgidbody_count, system.colliders);
+			compute_derived_all(system);
 			calculate_contact_velocity(system, contacts);
 			visualise_collisions(system, contacts);
 			
@@ -620,7 +621,7 @@ void integration_step(struct physics_system& system) {
 			// assert(!E_penetration);
 			// assert(!E_colliding_contact);
 
-			//free_contact_list(contacts);
+			free_contact_list(contacts);
 			//debug
 
 		}
