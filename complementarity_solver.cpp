@@ -1,4 +1,5 @@
-#include <cassert>
+#include <assert.h>
+#include <iostream>
 #include <eigen3/Eigen/Dense>
 #include <eigen3/Eigen/src/Core/Matrix.h>
 #include <eigen3/Eigen/src/Core/util/Constants.h>
@@ -36,9 +37,10 @@ Eigen::VectorXf pgs_solve(struct linear_complementarity_problem* problem, int it
 		for (int i = 0; i < system_size; i++) {
 			lambda(i) = window(problem->lamba_min(i), lambda(i), problem->lamba_max(i));
 		}
-		printf("lambda(0): %f", lambda(0));
+		
+		//std::cout << lambda << std::endl;
 	}
 	
-	assert(false);
+	//assert(false);
 	return lambda;
 }

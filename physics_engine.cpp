@@ -224,8 +224,6 @@ void compute_contact_forces(physics_system& system, struct contact_list* contact
 	Eigen::SparseMatrix<float> Minv = generalizedMass_matrix_inv(system);
 	Eigen::SparseMatrix<float> J = Jmatrix(system, contact_table, K);
 
-	// printf("Jmatrix ar = \n");
-	// std::cout << J.toDense() << std::endl;
 
 	struct linear_complementarity_problem lpc;
 
@@ -235,6 +233,11 @@ void compute_contact_forces(physics_system& system, struct contact_list* contact
 	auto f_ext = forces_ext_generlised(system);
 
 	lpc.b = J * (u + timestep * (Minv * f_ext) );
+	//printf("Minv * f_ext ar = \n");
+	//std::cout << J * (timestep *  Minv * f_ext) << std::endl;
+
+	//printf("Minv * f_ext ar = \n");
+	//std::cout << u << std::endl;
 
 
 	const float mu_friction_coef = 0;
@@ -394,7 +397,7 @@ void calculate_contact_velocity(struct physics_system& system, struct contact_li
 
 	contacts->contact_velocity = contact_velocity_j - contact_velocity_i;
 	contacts->contact_velocity_projected = dot_product(contacts->contact_velocity, contacts->contact_normal);
-	contacts->colliding_contact = contacts->contact_velocity_projected > system.minimum_nonpentration_velocity;
+	contacts->colliding_contact = contacts->contact_velocity_projected < system.minimum_nonpentration_velocity;
 
 	calculate_contact_velocity(system, contacts->next);
 }
@@ -440,14 +443,19 @@ void bisective_integration_step(struct physics_system& system, float sub_timeste
 	}
 
 	// normal forces
-	{
-	struct contact_list* contacts = collision_detectoion(system.ridgidbody_count, system.colliders);
-	calculate_contact_velocity(system, contacts);
+	// {
+	// struct contact_list* contacts = collision_detectoion(system.ridgidbody_count, system.colliders);
+	// calculate_contact_velocity(system, contacts);
 
-	if(contacts != NULL) {
-		compute_contact_forces(system, contacts, sub_timestep);
-	}
-	}
+	// bool E_colliding_contact, E_penetration;
+	// existsts_penetration_colliding_contact(contacts, &E_colliding_contact, &E_penetration);
+
+	// assert(!E_colliding_contact);
+
+	// if(contacts != NULL) {
+	// 	compute_contact_forces(system, contacts, sub_timestep);
+	// }
+	// }
 
 	for(size_t i = 0; i < system.ridgidbody_count; i++) {
 		struct ridgidbody& body = system.ridgidbodyies[i];
@@ -518,7 +526,7 @@ void integration_step0(struct physics_system& system) {
 void resolve_colliding_contacts(struct physics_system& system, struct contact_list* contacts) {
 	if(NULL == contacts) {
 		return;
-	} else if(contacts->contact_velocity_projected >= -system.minimum_nonpentration_velocity) {
+	} else if(!contacts->colliding_contact) {
 		// not colliding
 
 		resolve_colliding_contacts(system, contacts->next);
@@ -571,14 +579,20 @@ void integration_step(struct physics_system& system) {
 			compute_force_and_torque1(body);
 		}
 
-		{
-		struct contact_list* contacts = collision_detectoion(system.ridgidbody_count, system.colliders);
-		calculate_contact_velocity(system, contacts);
+		// {
+		// struct contact_list* contacts = collision_detectoion(system.ridgidbody_count, system.colliders);
+		// calculate_contact_velocity(system, contacts);
 
-		if(contacts != NULL) {
-			compute_contact_forces(system, contacts, system.remaining_seconds_until_next_timestep);
-		}
-		}
+		// bool E_colliding_contact, E_penetration;
+		// existsts_penetration_colliding_contact(contacts, &E_colliding_contact, &E_penetration);
+
+		// assert(E_colliding_contact);
+		// if(contacts != NULL) {
+		// 	compute_contact_forces(system, contacts, system.remaining_seconds_until_next_timestep);
+		// }
+
+		// }
+
 		
 		for(size_t i = 0; i < system.ridgidbody_count; i++) {
 			struct ridgidbody& body = system.ridgidbodyies[i];
