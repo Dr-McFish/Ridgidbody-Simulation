@@ -22,7 +22,7 @@
 
 // Gravity
 static const Eigen::Vector3f g = 9.81 * Eigen::Vector3f(0, -1, 0);
-static const float restitution_factor = 0.6;
+static const float restitution_factor = 0.98;
 
 // In pace update the derived quantities
 void compute_derived1(struct ridgidbody& body) {
@@ -30,6 +30,12 @@ void compute_derived1(struct ridgidbody& body) {
 	body.Iinv = R * body.Ibody_inv * R.transpose();
 	body.v = body.inv_mass * body.p;
 	body.omega = body.Iinv * body.L;
+}
+
+void compute_derived_all(physics_system& system) {
+	for(size_t i = 0; i < system.ridgidbody_count; i++) {
+		compute_derived1(system.ridgidbodyies[i]);
+	}
 }
 
 Eigen::SparseMatrix<float> Jmatrix(physics_system& system, contact_list* contact_table, int num_contacts){
@@ -429,7 +435,7 @@ void bisective_integration_step(struct physics_system& system, float sub_timeste
 		
 		//printf("forces before: ");
 		//std::cout << system.ridgidbodyies[0].force << std::endl;
-		compute_contact_forces(system, contact_table, num_contacts, sub_timestep);
+		//compute_contact_forces(system, contact_table, num_contacts, sub_timestep);
 
 		//printf("forces after: ");
 		//std::cout << system.ridgidbodyies[0].force << std::endl;
@@ -568,36 +574,6 @@ void integration_step(struct physics_system& system) {
 			compute_derived1(body);
 		}
 
-		struct contact_list* contact_list = collision_detectoion(system.ridgidbody_count, system.colliders);
-		calculate_contact_velocity(system, contact_list);
-
-		bool E_colliding_contact_pre, E_penetration_pre;
-		existsts_penetration_colliding_contact(contact_list, &E_colliding_contact_pre, &E_penetration_pre);
-		assert(!E_penetration_pre);
-
-		// if(E_colliding_contact_pre) {
-		// 	resolve_colliding_contacts(system, contact_list);
-		// 	calculate_contact_velocity(system, contact_list);
-		// 	existsts_penetration_colliding_contact(contact_list, &E_colliding_contact_pre, &E_penetration_pre);
-		// 	assert(!E_colliding_contact_pre);
-
-		// }
-
-
-		if (NULL != contact_list) {
-			int num_contacts;
-			struct contact_list* contact_table = list_to_array(contact_list, &num_contacts);
-			
-			//printf("forces before: ");
-			//std::cout << system.ridgidbodyies[0].force << std::endl;
-			// compute_contact_forces(system, contact_table, num_contacts, system.remaining_seconds_until_next_timestep);
-
-			//printf("forces after: ");
-			//std::cout << system.ridgidbodyies[0].force << std::endl;
-			free(contact_table);
-		} else {
-			free_contact_list(contact_list);
-		}
 		
 		for(size_t i = 0; i < system.ridgidbody_count; i++) {
 			struct ridgidbody& body = system.ridgidbodyies[i];
@@ -628,23 +604,23 @@ void integration_step(struct physics_system& system) {
 			//assert(system.stoped);
 
 			//debug
-			struct contact_list* contacts = collision_detectoion(system.ridgidbody_count, system.colliders);
+			//struct contact_list* contacts = collision_detectoion(system.ridgidbody_count, system.colliders);
 			calculate_contact_velocity(system, contacts);
-			//visualise_collisions(system, contacts);
+			visualise_collisions(system, contacts);
 			
 			// Bouce ressolution
 			resolve_colliding_contacts(system, contacts);
 			calculate_contact_velocity(system, contacts);
+			
 
-			visualise_collisions(system, contacts);
 
 			
-			bool E_colliding_contact, E_penetration;
-			existsts_penetration_colliding_contact(contacts, &E_colliding_contact, &E_penetration);
-			//assert(!E_penetration);
-			//assert(!E_colliding_contact);
+			// bool E_colliding_contact, E_penetration;
+			// existsts_penetration_colliding_contact(contacts, &E_colliding_contact, &E_penetration);
+			// assert(!E_penetration);
+			// assert(!E_colliding_contact);
 
-			free_contact_list(contacts);
+			//free_contact_list(contacts);
 			//debug
 
 		}
@@ -654,6 +630,13 @@ void integration_step(struct physics_system& system) {
 			visualise_collisions(system, contacts);
 			if(E_colliding_contact) {
 				resolve_colliding_contacts(system, contacts);
+				calculate_contact_velocity(system, contacts);
+
+				bool E_colliding_contact, E_penetration;
+				existsts_penetration_colliding_contact(contacts, &E_colliding_contact, &E_penetration);
+				assert(!E_penetration);
+				assert(!E_colliding_contact);
+
 			}
 
 
