@@ -16,13 +16,14 @@
 #include <iostream>
 #include "algebra_utils.h"
 #include "collision.h"
+#include "glm/fwd.hpp"
 #include "quaternion_helper.h"
 #include "rendering.h"
 #include "complementarity_solver.h"
 
 // Gravity
 static const Eigen::Vector3f g = 9.81 * Eigen::Vector3f(0, -1, 0);
-static const float restitution_factor = 0.60;
+static const float restitution_factor = 0.09;
 
 // In pace update the derived quantities
 void compute_derived1(struct ridgidbody& body) {
@@ -51,7 +52,7 @@ Eigen::SparseMatrix<float> Jmatrix(physics_system& system, contact_list* contact
 
 
 		// if it goes the wrong direction, n_k might be wrong way
-		const Eigen::Vector3f n_k = contact_k.contact_normal;
+		const Eigen::Vector3f n_k  = contact_k.contact_normal;
 		const Eigen::Vector3f t_k1 = contact_k.contact_tangent1;
 		const Eigen::Vector3f t_k2 = contact_k.contact_tangent2;
 
@@ -205,21 +206,23 @@ void lambda_to_forces(physics_system& system, contact_list* contact_table, int K
 		Eigen::Vector3f torque_i = cross_product(ri, -force_ij);
 		Eigen::Vector3f torque_j = cross_product(rj,  force_ij);
 
-		// body_i.force  += -force_ij;
-		// body_i.torque += torque_i;
+		body_i.force  -= -force_ij;
+		body_i.torque -= torque_i;
 
-		// body_j.force  += force_ij;
-		// body_j.torque += torque_j;
+		body_j.force  -= force_ij;
+		body_j.torque -= torque_j;
 	}
 }
 
 // Call once external forces are known and stored in the rigidbodiesr
 // each ellement of the contact table is one long
-void compute_contact_forces(physics_system& system, contact_list* contact_table, int num_contacts, float timestep) {
-	const int K = num_contacts;
+void compute_contact_forces(physics_system& system, struct contact_list* contact_list, float timestep) {
+	
+	int K; //N
+	struct contact_list* contact_table = list_to_array(contact_list, &K);
 	
 	Eigen::SparseMatrix<float> Minv = generalizedMass_matrix_inv(system);
-	Eigen::SparseMatrix<float> J = Jmatrix(system, contact_table, num_contacts);
+	Eigen::SparseMatrix<float> J = Jmatrix(system, contact_table, K);
 
 	// printf("Jmatrix ar = \n");
 	// std::cout << J.toDense() << std::endl;
@@ -258,15 +261,17 @@ void compute_contact_forces(physics_system& system, contact_list* contact_table,
 	// printf("lambda = \n");
 	// std::cout << lambda << std::endl;
 
-	// printf("force_before = \n");
-	// std::cout << system.ridgidbodyies[0].force << std::endl;
+	printf("force_before = \n");
+	std::cout << system.ridgidbodyies[0].force << std::endl;
 	
 	lambda_to_forces(system, contact_table, K, lambda);
 	
-	// printf("force_after = \n");
-	// std::cout << system.ridgidbodyies[0].force << std::endl;
+	printf("force_after = \n");
+	std::cout << system.ridgidbodyies[0].force << std::endl;
 
 	//assert(false); // crash
+
+	free(contact_table);
 }
 
 // Only accumulates gravity for now
@@ -346,6 +351,7 @@ void visualise_collisions(struct physics_system& system, struct contact_list* co
 	const glm::vec3 blue = glm::vec3(0.1, 0.1, 0.6);
 	const glm::vec3 yellow = glm::vec3(0.6, 0.6, 0.0);
 	const glm::vec3 red = glm::vec3(0.8, 0.1, 0.1);
+	const glm::vec3 orange  = glm::vec3(0.9f, 0.65f, 0.f);
 	for (size_t i = 0; i < system.ridgidbody_count; i++) {
 		if(NULL != system.ridgidbodyies[i].mesh) {
 			system.ridgidbodyies[i].mesh->mesh->setSurfaceColor(blue);
@@ -353,7 +359,15 @@ void visualise_collisions(struct physics_system& system, struct contact_list* co
 	}
 
 	while (contacts != NULL) {
-		const glm::vec3 coloring = contacts->penetration ? red : yellow;
+		glm::vec3 coloring;
+		if(contacts->penetration) {
+			coloring = red; 
+		} else if (contacts->colliding_contact) {
+			coloring = orange;
+		} else {
+			coloring = yellow;
+		}
+
 		//if(contacts->penetration) {printf("red\n");} else {printf("yellow\n");} 
 		if(NULL != system.ridgidbodyies[contacts->bodyi_id].mesh){
 			system.ridgidbodyies[contacts->bodyi_id].mesh->mesh->setSurfaceColor(coloring);
@@ -397,14 +411,14 @@ void existsts_penetration_colliding_contact(struct contact_list* contacts, bool*
 		*E_colliding_contact =	*E_colliding_contact || contacts->colliding_contact;
 		*E_penetration = 		*E_penetration 		 || contacts->penetration;
 
-		printf("penetration %f", contacts->penetration_depth);
+		//printf("penetration %f", contacts->penetration_depth);
 
 		contacts = contacts->next;
 	}
 }
 
 void bisective_integration_step(struct physics_system& system, float sub_timestep, int maxdepth) {
-	printf("depth: %d\n", maxdepth);
+	//printf("depth: %d\n", maxdepth);
 	if(system.stoped) {
 		return;
 	}
@@ -423,6 +437,16 @@ void bisective_integration_step(struct physics_system& system, float sub_timeste
 		struct ridgidbody& body = system.ridgidbodyies[i];
 		compute_derived1(body);
 		compute_force_and_torque1(body);
+	}
+
+	// normal forces
+	{
+	struct contact_list* contacts = collision_detectoion(system.ridgidbody_count, system.colliders);
+	calculate_contact_velocity(system, contacts);
+
+	if(contacts != NULL) {
+		compute_contact_forces(system, contacts, sub_timestep);
+	}
 	}
 
 	for(size_t i = 0; i < system.ridgidbody_count; i++) {
@@ -547,6 +571,14 @@ void integration_step(struct physics_system& system) {
 			compute_force_and_torque1(body);
 		}
 
+		{
+		struct contact_list* contacts = collision_detectoion(system.ridgidbody_count, system.colliders);
+		calculate_contact_velocity(system, contacts);
+
+		if(contacts != NULL) {
+			compute_contact_forces(system, contacts, system.remaining_seconds_until_next_timestep);
+		}
+		}
 		
 		for(size_t i = 0; i < system.ridgidbody_count; i++) {
 			struct ridgidbody& body = system.ridgidbodyies[i];
@@ -563,7 +595,7 @@ void integration_step(struct physics_system& system) {
 		existsts_penetration_colliding_contact(contacts, &E_colliding_contact, &E_penetration);
 		if (E_penetration)
 		{
-			printf(" boop\n");
+			//printf(" boop\n");
 			
 			//restore old state:
 			free(system.ridgidbodyies);
