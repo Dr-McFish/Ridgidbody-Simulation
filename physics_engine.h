@@ -42,7 +42,7 @@ struct physics_system {
 	// 6N Generalized force(incl. torque)
 	Eigen::VectorXf force;
 	
-	float base_timestep_seconds {1./60.};
+	float base_timestep_seconds {1./30.};
 	float remaining_seconds_until_next_timestep {0.f};
 	float minimum_nonpentration_velocity {penetration_epsilon_m * 30};
 
@@ -50,6 +50,14 @@ struct physics_system {
 	std::vector<struct rendering::mesh> mesh;
 };
 Eigen::Vector3f s_ith_x(Eigen::VectorXf& s, int i);
+
+Eigen::Quaternionf ith_Q(struct physics_system& system, int i);
+Eigen::Vector3f s_ith_x(Eigen::VectorXf& s, int i);
+Eigen::Vector3f ith_x(struct physics_system& system, int i);
+Eigen::Vector3f ith_v(struct physics_system& system, int i);
+Eigen::Vector3f ith_omega(struct physics_system& system, int i);
+Eigen::Vector3f ith_force(struct physics_system& system, int i);
+
 
 struct ridgidbody ith_body(struct physics_system& system, int i);
 

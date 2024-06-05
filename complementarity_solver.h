@@ -24,7 +24,7 @@ struct linear_complementarity_problem {
 };
 
 //returns lambda
-Eigen::VectorXf pgs_solve(struct linear_complementarity_problem* problem, int iterations);
+Eigen::VectorXf pgs_solve(struct linear_complementarity_problem* problem, int iterations, float mu);
 
 #endif
 

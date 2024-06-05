@@ -9,7 +9,7 @@ float window(float minval, float val, float maxval) {
 }
 
 //returns lambda
-Eigen::VectorXf pgs_solve(struct linear_complementarity_problem* problem, int iterations) {
+Eigen::VectorXf pgs_solve(struct linear_complementarity_problem* problem, int iterations, float mu) {
 	const int system_size = problem->lambda_max.size();
 
 	Eigen::VectorXf lambda = Eigen::VectorXf(system_size);
@@ -30,6 +30,11 @@ Eigen::VectorXf pgs_solve(struct linear_complementarity_problem* problem, int it
 
 			lambda(i) = lambda(i) / problem->A.coeff(i, i);
 	
+			int r = i % 3;
+			if(0 != r) {
+				problem->lambda_max(i) = mu * lambda(i - r);
+				problem->lambda_min(i) = -problem->lambda_max(i);
+			}
 		}
 		// Projection
 		for (int i = 0; i < system_size; i++) {

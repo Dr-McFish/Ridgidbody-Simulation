@@ -135,6 +135,8 @@ struct contact_list* sphere_half_space_collision_detectoion(struct sphere_colide
 	// ret->solid2_id;
 	// ret->tangent1;
 	// ret->tangent2;
+
+	//assert(false);
 	return ret; 
 }
 
@@ -175,12 +177,12 @@ collider::collider(const collider& ref) {
 
 	switch (this->type) {
 		case COLIDER_SPHERE:
-			this->u.sphere_colider = this->u.sphere_colider;
+			this->u.sphere_colider.radius = ref.u.sphere_colider.radius;
 			break;
 
 
 		case COLIDER_HALF_SPACE:
-			this->u.half_space_colider = this->u.half_space_colider;
+			this->u.half_space_colider.normal = ref.u.half_space_colider.normal;
 			break;
 
 		default:
@@ -188,6 +190,5 @@ collider::collider(const collider& ref) {
 	}
 }
 collider::collider() {
-	this->type;
 	this->u.dummy = false;
 }
