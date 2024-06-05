@@ -50,7 +50,7 @@ int main() {
 		//visualise_collisions(system, contacts);
 		//free(contacts);
 
-		//std::cout << system.ridgidbodyies[0].x << std::endl;
+		std::cout << s_ith_x(system.s, 0) << std::endl;
 		polyscope::frameTick(); // renders one UI frame, returns immediately
 	}
 }

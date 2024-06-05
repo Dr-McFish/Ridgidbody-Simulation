@@ -311,15 +311,14 @@ void add_body(struct physics_system& system, float mass_kg, Eigen::Matrix3f Iner
 	system.Ibody_inv.push_back(Inertia_body);
 	system.s.conservativeResize(7 * system.ridgidbody_count);
 
-	int size = system.s.size();
 
 	system.s(Eigen::seq(7*system.ridgidbody_count - 7    , 7*system.ridgidbody_count -7 +2)) = x_initial;
-	system.s(Eigen::seq(7*system.ridgidbody_count - 7 + 2, 7*system.ridgidbody_count -1)) = Eigen::Vector4f(1,0,0,0);
+	system.s(Eigen::seq(7*system.ridgidbody_count - 7 + 3, 7*system.ridgidbody_count -1)) = Eigen::Vector4f(1,0,0,0);
 
 	system.u.conservativeResize(6 * system.ridgidbody_count);
 
 	system.force.conservativeResize(6 * system.ridgidbody_count);
-	system.u(Eigen::seq(7*system.ridgidbody_count - 7, 7*system.ridgidbody_count-1)) << 0,0,0 , 0,0,0;
+	system.u(Eigen::seq(6*system.ridgidbody_count - 6, 6*system.ridgidbody_count-1)) << 1,0,-1 , 1,0,2;
 
 
 	system.colliders.push_back(collider);
@@ -335,9 +334,9 @@ void add_imovablbe(struct physics_system& system, Eigen::Vector3f x_initial, col
 	system.s(Eigen::seq( 7 *system.ridgidbody_count - 7 + 3, 7 * system.ridgidbody_count-1)) = Eigen::Vector4f(1,0,0,0);
 
 	system.u.conservativeResize(6 * system.ridgidbody_count);
-
 	system.force.conservativeResize(6 * system.ridgidbody_count);
-	system.u(Eigen::seq(6* system.ridgidbody_count - 6, system.ridgidbody_count-1)) << 0,0,0 , 0,0,0;
+
+	system.u(Eigen::seq(6* system.ridgidbody_count - 6, 6*system.ridgidbody_count-1)) << 0,0,0 , 0,0,0;
 
 
 	system.colliders.push_back(collider);
@@ -459,6 +458,7 @@ void integration_step(struct physics_system& system) {
 	compute_forces(system);
 
 	contact_list* contacts = collision_detectoion(system.colliders, system.s);
+	visualise_collisions(system, contacts);
 	std::vector<struct contact_list> contact_table = list_to_array(contacts);
 
 	Eigen::SparseMatrix<float> Minv = generalizedMass_matrix_inv(system);
