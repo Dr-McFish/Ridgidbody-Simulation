@@ -25,7 +25,7 @@
 // Gravity
 static const Eigen::Vector3f g = 9.81 * Eigen::Vector3f(0, -1, 0);
 static const float restitution_factor = 0.4;
-const float mu_friction_coef = 0.6;
+const float mu_friction_coef = 0.f;
 
 Eigen::Quaternionf ith_Q(struct physics_system& system, int i) {
 	return Eigen::Quaternionf(system.s(7*i +3), system.s(7*i +4), system.s(7*i +5), system.s(7*i +6) );
@@ -102,7 +102,7 @@ Eigen::SparseMatrix<float> Jmatrix(physics_system& system, std::vector<struct co
 
 
 		// if it goes the wrong direction, n_k might be wrong way
-		const Eigen::Vector3f n_k =  contact_k.contact_normal;
+		const Eigen::Vector3f n_k = -contact_k.contact_normal;
 		const Eigen::Vector3f t_k1 = contact_k.contact_tangent1;
 		const Eigen::Vector3f t_k2 = contact_k.contact_tangent2;
 
@@ -117,24 +117,24 @@ Eigen::SparseMatrix<float> Jmatrix(physics_system& system, std::vector<struct co
 		const Eigen::Vector3f r_kj_x_t2 = cross_product(r_kj, t_k2);
 		
 		Eigen::Matrix3f Ji_klin;
-		Ji_klin << n_k(0) , n_k(1) , n_k(2) ,
-				   t_k1(0), t_k1(1), t_k1(2),
-				   t_k2(0), t_k2(1), t_k2(2);
-
-		Eigen::Matrix3f Jj_klin;
-		Jj_klin << -n_k(0) , -n_k(1) , -n_k(2) ,
+		Ji_klin << -n_k(0) , -n_k(1) , -n_k(2) ,
 				   -t_k1(0), -t_k1(1), -t_k1(2),
 				   -t_k2(0), -t_k2(1), -t_k2(2);
+
+		Eigen::Matrix3f Jj_klin;
+		Jj_klin << n_k(0) , n_k(1) , n_k(2) ,
+				   t_k1(0), t_k1(1), t_k1(2),
+				   t_k2(0), t_k2(1), t_k2(2);
 		
 		Eigen::Matrix3f Ji_kang;
-		Ji_kang << r_ki_x_n (0), r_ki_x_n (1), r_ki_x_n (2),
-				   r_ki_x_t1(0), r_ki_x_t1(1), r_ki_x_t1(2),
-				   r_ki_x_t2(0), r_ki_x_t2(1), r_ki_x_t2(2);
+		Ji_kang << -r_ki_x_n (0), -r_ki_x_n (1), -r_ki_x_n (2),
+				   -r_ki_x_t1(0), -r_ki_x_t1(1), -r_ki_x_t1(2),
+				   -r_ki_x_t2(0), -r_ki_x_t2(1), -r_ki_x_t2(2);
 
 		Eigen::Matrix3f Jj_kang;
-		Jj_kang << -r_kj_x_n (0), -r_kj_x_n (1), -r_kj_x_n (2),
-				   -r_kj_x_t1(0), -r_kj_x_t1(1), -r_kj_x_t1(2),
-				   -r_kj_x_t2(0), -r_kj_x_t2(1), -r_kj_x_t2(2);
+		Jj_kang << r_kj_x_n (0), r_kj_x_n (1), r_kj_x_n (2),
+				   r_kj_x_t1(0), r_kj_x_t1(1), r_kj_x_t1(2),
+				   r_kj_x_t2(0), r_kj_x_t2(1), r_kj_x_t2(2);
 		
 		for (int matx = 0; matx < 3; matx++) {
 			for (int maty = 0; maty < 3; maty++) {
@@ -405,13 +405,13 @@ Eigen::VectorXf 	compute_contact_impulses(int K, physics_system& system, Eigen::
 
 	struct linear_complementarity_problem lcp;
 
-	// std::cout << "J = \n" << J.toDense() << std::endl;
+	std::cout << "J = \n" << J.toDense() << std::endl;
 
-	// std::cout << "M_inv = \n" << Minv.toDense() << std::endl;
+	std::cout << "M_inv = \n" << Minv.toDense() << std::endl;
 
 	lcp.A = J * Minv * J.transpose();
 
-	// std::cout << "A = \n" << lcp.A.toDense() << std::endl;
+	std::cout << "A = \n" << lcp.A.toDense() << std::endl;
 
 	auto u = system.u;
 	// std::cout << "u = \n" << u << std::endl;
@@ -426,8 +426,8 @@ Eigen::VectorXf 	compute_contact_impulses(int K, physics_system& system, Eigen::
 	}
 	//std::cout << "b_bounce = \n" << b_bouce << std::endl;
 
-	lcp.b = J * (u + timestep * (Minv * f_ext) ) ; // + b_bouce;
-	// std::cout << "b = \n" << lcp.b << std::endl;
+	lcp.b = J * (u + timestep * (Minv * f_ext) ) + b_bouce;
+	std::cout << "b = \n" << lcp.b << std::endl;
 	//printf("Minv * f_ext ar = \n");
 	//std::cout << J * (timestep *  Minv * f_ext) << std::endl;
 
@@ -439,13 +439,13 @@ Eigen::VectorXf 	compute_contact_impulses(int K, physics_system& system, Eigen::
 	lcp.lambda_max = Eigen::VectorXf(3* K);
 
 	for (int j = 0; j < K; j++) {
-		lcp.lambda_min(j + 0) = 0;
-		lcp.lambda_min(j + 1) = -mu_friction_coef * 0; // friction at some point maybe
-		lcp.lambda_min(j + 2) = -mu_friction_coef * 0; // friction at some point maybe
+		lcp.lambda_min(3*j + 0) = 0;
+		lcp.lambda_min(3*j + 1) = -mu_friction_coef * 0; // friction at some point maybe
+		lcp.lambda_min(3*j + 2) = -mu_friction_coef * 0; // friction at some point maybe
 
-		lcp.lambda_max(j + 0) = +INFINITY;
-		lcp.lambda_max(j + 1) = mu_friction_coef * 0; // friction at some point maybe
-		lcp.lambda_max(j + 2) = mu_friction_coef * 0; // friction at some point maybe
+		lcp.lambda_max(3*j + 0) = +INFINITY;
+		lcp.lambda_max(3*j + 1) = mu_friction_coef * 0; // friction at some point maybe
+		lcp.lambda_max(3*j + 2) = mu_friction_coef * 0; // friction at some point maybe
 	}
 	// printf("Amatrix = \n");
 	// std::cout << lpc.A.toDense() << std::endl;
@@ -454,13 +454,13 @@ Eigen::VectorXf 	compute_contact_impulses(int K, physics_system& system, Eigen::
 
 	Eigen::VectorXf lambda = pgs_solve(&lcp, 10, mu_friction_coef);
 
+	Eigen::VectorXf w = lcp.A * lambda + lcp.b;
+	printf("w = \n");
+	std::cout << w << std::endl;
 
-	// printf("lambda = \n");
-	// std::cout << lambda << std::endl;
-
-	// printf("force_before = \n");
-	// std::cout << system.ridgidbodyies[0].force << std::endl;
-	
+	for (int i = 0; i < 3*K; i++) {
+		assert(w(i) > -0.1);
+	}
 	return lambda;
 }
 
@@ -481,15 +481,16 @@ void integration_step(struct physics_system& system) {
 	contact_list* contacts = collision_detectoion(system.colliders, system.s);
 	visualise_collisions(system, contacts);
 	std::vector<struct contact_list> contact_table = list_to_array(contacts);
-	//assert(!exists_big_penetration(contact_table));
+	assert(!exists_big_penetration(contact_table));
 
 	Eigen::SparseMatrix<float> Minv = generalizedMass_matrix_inv(system);
 	Eigen::SparseMatrix<float> J = Jmatrix(system, contact_table);
 	const int K = contact_table.size();
 	
+	std::cout << "contact_speeds = \n" << J * system.u << std::endl;
 
 	Eigen::VectorXf lambda = compute_contact_impulses(K, system, J, Minv, system.base_timestep_seconds);
-	// std::cout << "lambda = \n" << lambda << std::endl;
+	std::cout << "lambda = \n" << lambda << std::endl;
 
 	// Velocity update
 	system.u += (Minv * J.transpose() * lambda);

@@ -17,20 +17,23 @@ int main() {
 
 	struct physics_system system;// = initialise_system();
 
-	struct collider csphere;
-	csphere.type = COLIDER_SPHERE;
-	csphere.u.sphere_colider = {.radius = 0.5f};
+	struct collider csphere1;
+	csphere1.type = COLIDER_SPHERE;
+	csphere1.u.sphere_colider = {.radius = 0.5f};
+
+	struct collider csphere2 = csphere1;
+
 
 	struct rendering::mesh cube1 = rendering::create_cube("cube1");
-	// struct rendering::mesh cube2 = rendering::create_cube("cube2");
+	struct rendering::mesh cube2 = rendering::create_cube("cube2");
 	// struct rendering::mesh cube3 = rendering::create_cube("cube3");
 	// struct rendering::mesh cube4 = rendering::create_cube("cube4");
 	// struct rendering::mesh cube5 = rendering::create_cube("cube5");
 	// struct rendering::mesh cube6 = rendering::create_cube("cube6");
 	// struct rendering::mesh cube7 = rendering::create_cube("cube7");
 
-	add_body(system, 10, Eigen::Matrix3f::Identity(), Eigen::Vector3f(2, 1, 0), csphere, cube1);
-	// add_body(system, 10, Eigen::Matrix3f::Identity(), Eigen::Vector3f(-2, 1, 0), csphere, cube2);
+	add_body(system, 10, Eigen::Matrix3f::Identity(), Eigen::Vector3f(2, 1, 0), csphere1, cube1);
+	add_body(system, 10, Eigen::Matrix3f::Identity(), Eigen::Vector3f(-2, 1, 0), csphere2, cube2);
 	// add_body(system, 10, Eigen::Matrix3f::Identity(), Eigen::Vector3f(0, 1, 0), csphere, cube3);
 	// add_body(system, 10, Eigen::Matrix3f::Identity(), Eigen::Vector3f(0, 3, 0), csphere, cube4);
 	// add_body(system, 10, Eigen::Matrix3f::Identity(), Eigen::Vector3f(0, 5, 0), csphere, cube5);
