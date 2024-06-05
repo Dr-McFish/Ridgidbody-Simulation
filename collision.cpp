@@ -5,7 +5,7 @@
 #include <cstring>
 #include <eigen3/Eigen/src/Core/Matrix.h>
 #include "algebra_utils.h"
-
+#include "physics_engine.h"
 
 struct contact_list* sphere_sphere_collision_detectoion(struct sphere_colider& sphere1, Eigen::Vector3f sphere1_pos,
 														struct sphere_colider& sphere2, Eigen::Vector3f sphere2_pos);
@@ -19,9 +19,8 @@ void free_contact_list(struct contact_list* c) {
 		free(c);
 	}
 }
-
-//borrows a list of colliders and returns a list of contacts
-struct contact_list* collision_detectoion(int count, struct collider* colliders) {
+struct contact_list* collision_detectoion(std::vector<struct collider> colliders, Eigen::VectorXf& s) {
+	int count = colliders.size();
 	struct contact_list* ret = NULL;
 
 	auto add_collision_to_list = [&](int idx1, int idx2, struct contact_list* collision_maybe) {
@@ -41,20 +40,20 @@ struct contact_list* collision_detectoion(int count, struct collider* colliders)
 
 			if(colliders[i].type == COLIDER_SPHERE && colliders[j].type == COLIDER_SPHERE)
 			{
-				collision_maybe = sphere_sphere_collision_detectoion(colliders[i].u.sphere_colider, *colliders[i].pos,
-																	 colliders[j].u.sphere_colider, *colliders[j].pos);
+				collision_maybe = sphere_sphere_collision_detectoion(colliders[i].u.sphere_colider, s_ith_x(s, i),
+																	 colliders[j].u.sphere_colider, s_ith_x(s, j));
 				add_collision_to_list(i,j, collision_maybe);
 			} 
 			else if(colliders[i].type == COLIDER_SPHERE && colliders[j].type == COLIDER_HALF_SPACE)
 			{
-				collision_maybe = sphere_half_space_collision_detectoion(colliders[i].u.sphere_colider,		*colliders[i].pos,
-																		 colliders[j].u.half_space_colider,*colliders[j].pos);
+				collision_maybe = sphere_half_space_collision_detectoion(colliders[i].u.sphere_colider,		s_ith_x(s, i),
+																		 colliders[j].u.half_space_colider,s_ith_x(s, j));
 				add_collision_to_list(i,j, collision_maybe);
 			}
 			else if(colliders[j].type == COLIDER_SPHERE && colliders[i].type == COLIDER_HALF_SPACE)
 			{
-				collision_maybe = sphere_half_space_collision_detectoion(colliders[j].u.sphere_colider,		*colliders[j].pos,
-																		 colliders[i].u.half_space_colider,*colliders[i].pos);
+				collision_maybe = sphere_half_space_collision_detectoion(colliders[j].u.sphere_colider,		s_ith_x(s, j),
+																		 colliders[i].u.half_space_colider,s_ith_x(s, i));
 				// NOTE the inversion of j and i
 				add_collision_to_list(j,i, collision_maybe); 
 			} 
@@ -139,10 +138,6 @@ struct contact_list* sphere_half_space_collision_detectoion(struct sphere_colide
 	return ret; 
 }
 
-void copy_collider(struct collider* source, struct collider* dest) {
-	memcpy(dest, source, sizeof(struct collider));
-}
-
 int list_length(struct contact_list* list) {
 	if(NULL == list) {
 		return 0;
@@ -151,24 +146,48 @@ int list_length(struct contact_list* list) {
 	}
 }
 
-void parcours_coppie(struct contact_list* list, struct contact_list* array, int pos) {
-	if(pos < 0) {
+void parcours_coppie(struct contact_list* list, std::vector<struct contact_list>& array) {
+	if(NULL == list) {
 		return;
 	} else {
 		assert(NULL != list);
-		array[pos] = *list;
-		array[pos].next = NULL;
-		parcours_coppie(list->next, array, pos - 1);
+		array.push_back(*list);
+		array[array.size() - 1].next = NULL;
+		parcours_coppie(list->next, array);
 		free(list);
 	}
 }
 
-struct contact_list* list_to_array(struct contact_list* list, int* adr_taille) {
-	*adr_taille = list_length(list);
+std::vector<struct contact_list> list_to_array(struct contact_list* list)
+{
+	int taille = list_length(list);
 
-	struct contact_list* array = (struct contact_list*)calloc(*adr_taille, sizeof(struct contact_list));
-	parcours_coppie(list, array, *adr_taille -1);
+	std::vector<struct contact_list> array;
+	array.reserve(taille);
+	
+	parcours_coppie(list, array);
 	
 	return array;
 }
 
+collider::collider(const collider& ref) {
+	this->type = ref.type;
+
+	switch (this->type) {
+		case COLIDER_SPHERE:
+			this->u.sphere_colider = this->u.sphere_colider;
+			break;
+
+
+		case COLIDER_HALF_SPACE:
+			this->u.half_space_colider = this->u.half_space_colider;
+			break;
+
+		default:
+			assert(false);	
+	}
+}
+collider::collider() {
+	this->type;
+	this->u.dummy = false;
+}

@@ -20,7 +20,6 @@ enum colider_type {COLIDER_SPHERE, COLIDER_HALF_SPACE};
 
 
 struct collider{
-	Eigen::Vector3f* pos;
 	enum colider_type type;
 	union U{
 		struct sphere_colider sphere_colider; 
@@ -30,6 +29,9 @@ struct collider{
 		constexpr U() {}
 		bool dummy{false};
 	} u;
+
+	collider(const collider&);
+	collider();
 };
 
 struct contact_list{
@@ -54,10 +56,9 @@ struct contact_list{
 void free_contact_list(struct contact_list* c);
 
 //borrows an array of colliders and returns a list of contacts
-struct contact_list* collision_detectoion(int count, struct collider* coliders);
-void copy_collider(struct collider* source, struct collider* dest);
+struct contact_list* collision_detectoion(std::vector<struct collider> coliders, Eigen::VectorXf& s);
 
 // destroys the list
-struct contact_list* list_to_array(struct contact_list* list, int* adr_taille);
+std::vector<struct contact_list> list_to_array(struct contact_list* list);
 
 #endif

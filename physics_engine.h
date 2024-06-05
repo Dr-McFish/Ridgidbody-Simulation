@@ -49,12 +49,13 @@ struct physics_system {
 	std::vector<struct collider> colliders;
 	std::vector<struct rendering::mesh> mesh;
 };
+Eigen::Vector3f s_ith_x(Eigen::VectorXf& s, int i);
 
 struct ridgidbody ith_body(struct physics_system& system, int i);
 
 //struct physics_system initialise_system();
 
-void add_body(struct physics_system& system, float mass_kg, Eigen::Matrix3f Inertia_body, Eigen::Vector3f x_initial, struct collider& c, struct rendering::mesh m);
+void add_body(struct physics_system& system, float mass_kg, Eigen::Matrix3f Inertia_body, Eigen::Vector3f x_initial, struct collider& c, struct rendering::mesh& m);
 void add_imovablbe(struct physics_system& system, Eigen::Vector3f x_initial, collider& c, struct rendering::mesh& mesh);
 
 void integration_step(struct physics_system& system);

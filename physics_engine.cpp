@@ -15,6 +15,7 @@
 #include <eigen3/Eigen/src/Geometry/Quaternion.h>
 #include <eigen3/Eigen/src/SparseCore/SparseMatrix.h>
 #include <iostream>
+#include <vector>
 #include "algebra_utils.h"
 #include "collision.h"
 #include "quaternion_helper.h"
@@ -28,8 +29,12 @@ static const float restitution_factor = 0.090;
 Eigen::Quaternionf ith_Q(struct physics_system& system, int i) {
 	return Eigen::Quaternionf(system.s(7*i +3), system.s(7*i +4), system.s(7*i +5), system.s(7*i +6) );
 }
+Eigen::Vector3f s_ith_x(Eigen::VectorXf& s, int i) {
+	return s(Eigen::seq(7*i, 7*i +2));
+}
+
 Eigen::Vector3f ith_x(struct physics_system& system, int i) {
-	return system.s(Eigen::seq(7*i, 7*i +3));
+	return system.s(Eigen::seq(7*i, 7*i +2));
 }
 
 Eigen::Vector3f ith_v(struct physics_system& system, int i) {
@@ -71,8 +76,20 @@ struct ridgidbody ith_body(struct physics_system& system, int i) {
 	return r;
 }
 
-Eigen::SparseMatrix<float> Jmatrix(physics_system& system, contact_list* contact_table, int num_contacts){
-	const int K = num_contacts;
+void compute_forces(physics_system& system) {
+	for (size_t i = 0; i < system.ridgidbody_count; i++) {
+		auto force_i  = system.force(Eigen::seq(6*i    , 6*i + 2));
+		auto torque_i = system.force(Eigen::seq(6*i + 3, 6*i + 5));
+
+		force_i  = g;
+
+		Eigen::Vector3f omega = ith_omega(system, i);
+		torque_i = - cross_product(omega, ith_Iinv(system, i) * omega);
+	}
+}
+
+Eigen::SparseMatrix<float> Jmatrix(physics_system& system, std::vector<struct contact_list> contact_table){
+	const int K = contact_table.size();
 	const int N = system.ridgidbody_count;
 
 	Eigen::SparseMatrix<float> J(3*K, 6*N);
@@ -181,6 +198,47 @@ Eigen::SparseMatrix<float> generalizedMass_matrix_inv(physics_system& system) {
 	return Minv;
 }
 
+// 
+Eigen::SparseMatrix<float> S_position_derivative_matrix(physics_system& system) {
+	const int N = system.ridgidbody_count;
+
+	std::vector<Eigen::Triplet<float>> tripletListS;
+	tripletListS.reserve(N*12);
+
+	Eigen::SparseMatrix<float> S(7*N, 6*N);
+
+	for(int body_idx = 0; body_idx < N; body_idx++) {
+		
+		// diagonal block
+		for (int repeat = 0; repeat < 3; repeat++) {
+			tripletListS.push_back(Eigen::Triplet<float>(
+				// i´, j´ J_i´,j´
+				7*body_idx + repeat, 6*body_idx + repeat, 1
+			));
+		}
+
+		Eigen::Quaternionf Q = ith_Q(system, body_idx);
+
+		Eigen::Matrix<float, 4, 3> Q_d ;
+		Q_d << -Q.x(), -Q.y(), -Q.z(),
+			    Q.w(),  Q.z(), -Q.y(),
+			   -Q.z(),  Q.w(),  Q.x(),
+			    Q.y(), -Q.x(),  Q.w();
+
+		for (int matx = 0; matx < 4; matx++) {
+			for (int maty = 0; maty < 3; maty++) {
+				tripletListS.push_back(Eigen::Triplet<float>(
+				// i´, j´ J_i´,j´
+				7*body_idx + 3 + matx, 6*body_idx + 3 + maty, Q_d(matx, maty)
+			));
+			}
+		}
+	}
+
+	S.setFromTriplets(tripletListS.begin(), tripletListS.end());
+	return S;
+}
+
 // Eigen::VectorXf u_generlised_velocity(physics_system& system) {
 // 	const int N = system.ridgidbody_count;
 
@@ -252,13 +310,16 @@ void add_body(struct physics_system& system, float mass_kg, Eigen::Matrix3f Iner
 	system.invmass.push_back(1.f/mass_kg);
 	system.Ibody_inv.push_back(Inertia_body);
 	system.s.conservativeResize(7 * system.ridgidbody_count);
-	system.s(Eigen::seq(system.ridgidbody_count - 8, system.ridgidbody_count-8 +3)) = x_initial;
-	system.s(Eigen::seq(system.ridgidbody_count - 4, system.ridgidbody_count-1)) = Eigen::Vector4f(1,0,0,0);
+
+	int size = system.s.size();
+
+	system.s(Eigen::seq(7*system.ridgidbody_count - 7    , 7*system.ridgidbody_count -7 +2)) = x_initial;
+	system.s(Eigen::seq(7*system.ridgidbody_count - 7 + 2, 7*system.ridgidbody_count -1)) = Eigen::Vector4f(1,0,0,0);
 
 	system.u.conservativeResize(6 * system.ridgidbody_count);
 
 	system.force.conservativeResize(6 * system.ridgidbody_count);
-	system.u(Eigen::seq(system.ridgidbody_count - 8, system.ridgidbody_count-1)) << 0,0,0 , 0,0,0;
+	system.u(Eigen::seq(7*system.ridgidbody_count - 7, 7*system.ridgidbody_count-1)) << 0,0,0 , 0,0,0;
 
 
 	system.colliders.push_back(collider);
@@ -270,8 +331,8 @@ void add_imovablbe(struct physics_system& system, Eigen::Vector3f x_initial, col
 	system.invmass.push_back(0.f); // 1/m = 0
 	system.Ibody_inv.push_back(Eigen::Matrix3f::Zero()); // I⁻¹ = 0
 	system.s.conservativeResize(7 * system.ridgidbody_count);
-	system.s(Eigen::seq( 7 *system.ridgidbody_count - 8, 7 * system.ridgidbody_count-8 +3)) = x_initial;
-	system.s(Eigen::seq( 7 *system.ridgidbody_count - 4, 7 * system.ridgidbody_count-1)) = Eigen::Vector4f(1,0,0,0);
+	system.s(Eigen::seq( 7 *system.ridgidbody_count - 7    , 7 * system.ridgidbody_count-7 +2)) = x_initial;
+	system.s(Eigen::seq( 7 *system.ridgidbody_count - 7 + 3, 7 * system.ridgidbody_count-1)) = Eigen::Vector4f(1,0,0,0);
 
 	system.u.conservativeResize(6 * system.ridgidbody_count);
 
@@ -335,6 +396,85 @@ void physys_render_update(struct physics_system& system) {
 // }
 
 
-void sove_for_contact_forces(struct physics_system& system) {
+
+// returns the lambda vector
+Eigen::VectorXf compute_contact_impulses(int K, physics_system& system, Eigen::SparseMatrix<float> J_collision_matrix, Eigen::SparseMatrix<float> Minv, float timestep)
+{
+	const Eigen::SparseMatrix<float> J = J_collision_matrix;
+
+
+	struct linear_complementarity_problem lcp;
+
+	lcp.A = J * Minv * J.transpose();
+
+	auto u = system.u;
+	auto f_ext = system.force;
+
+	// bounce
+	Eigen::VectorXf b_bouce = - restitution_factor * J * system.u;
+	for (int i = 0; i < K; i++) {
+		b_bouce(3*i + 1) = 0.f;
+		b_bouce(3*i + 2) = 0.f;
+	}
+
+	lcp.b = J * (u + timestep * (Minv * f_ext) ) + b_bouce;
+	//printf("Minv * f_ext ar = \n");
+	//std::cout << J * (timestep *  Minv * f_ext) << std::endl;
+
+	//printf("Minv * f_ext ar = \n");
+	//std::cout << u << std::endl;
+
+
+	const float mu_friction_coef = 0;
+	lcp.lambda_min = Eigen::VectorXf(3* K);
+	lcp.lambda_max = Eigen::VectorXf(3* K);
+
+	for (int j = 0; j < K; j++) {
+		lcp.lambda_min(j + 0) = 0;
+		lcp.lambda_min(j + 1) = -mu_friction_coef * 0; // friction at some point maybe
+		lcp.lambda_min(j + 2) = -mu_friction_coef * 0; // friction at some point maybe
+
+		lcp.lambda_max(j + 0) = +INFINITY;
+		lcp.lambda_max(j + 1) = mu_friction_coef * 0; // friction at some point maybe
+		lcp.lambda_max(j + 2) = mu_friction_coef * 0; // friction at some point maybe
+	}
+	// printf("Amatrix = \n");
+	// std::cout << lpc.A.toDense() << std::endl;
+	// printf("b_vec = \n");
+	// std::cout << lpc.b << std::endl;
+
+	Eigen::VectorXf lambda = pgs_solve(&lcp, 10);
+
+
+	// printf("lambda = \n");
+	// std::cout << lambda << std::endl;
+
+	// printf("force_before = \n");
+	// std::cout << system.ridgidbodyies[0].force << std::endl;
 	
+	return lambda;
 }
+
+void integration_step(struct physics_system& system) {
+	compute_forces(system);
+
+	contact_list* contacts = collision_detectoion(system.colliders, system.s);
+	std::vector<struct contact_list> contact_table = list_to_array(contacts);
+
+	Eigen::SparseMatrix<float> Minv = generalizedMass_matrix_inv(system);
+	Eigen::SparseMatrix<float> J = Jmatrix(system, contact_table);
+	const int K = contact_table.size();
+	
+
+	Eigen::VectorXf lambda = compute_contact_impulses(K, system, J, Minv, system.base_timestep_seconds);
+
+
+	// Velocity update
+	system.u = system.u + Minv * J.transpose() * lambda + system.base_timestep_seconds * Minv * system.force;
+
+	// Position update
+	Eigen::SparseMatrix<float> S = S_position_derivative_matrix(system);
+	system.s = system.s + system.base_timestep_seconds * S * system.u;
+}
+
+
