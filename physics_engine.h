@@ -3,6 +3,7 @@
 
 #include <eigen3/Eigen/Dense>
 #include <eigen3/Eigen/Geometry>
+#include <vector>
 
 #include "collision.h"
 #include "rendering.h"
@@ -15,49 +16,47 @@ struct ridgidbody {
 	// State variables
 	Eigen::Vector3f x;
 	Eigen::Quaternionf Q;
-	Eigen::Vector3f p; // Quantité de mouvement
-	Eigen::Vector3f L; // moment cinetique
-
-	// Derived quantities (auxiliary variables)
 	Eigen::Vector3f v;
 	Eigen::Vector3f omega;
+
+	// Derived quantities (auxiliary variables)
 	Eigen::Matrix3f Iinv;
-
-	//  Computed quantities
-	Eigen::Vector3f force;
-	Eigen::Vector3f torque;
-
-	//optional
-	struct rendering::mesh* mesh;
-
 };
 
-void initialize_rigidbody(struct ridgidbody& r, float mass_kg, Eigen::Matrix3f Inertia_body, Eigen::Vector3f x_initial);
+
+//void initialize_rigidbody(struct ridgidbody& r, float mass_kg, Eigen::Matrix3f Inertia_body, Eigen::Vector3f x_initial);
 
 struct physics_system {
-	size_t ridgidbody_count;
-	struct ridgidbody* ridgidbodyies;
-	struct collider* colliders; // `rigidbodies[k]` is assosiated with collider `colliders[k]`
+	size_t ridgidbody_count {0};
+
+	// constatnts
+	std::vector<Eigen::Matrix3f> Ibody_inv;
+	std::vector<float> invmass;
+
+	// 7N generalized position vector
+	Eigen::VectorXf s;
+
+	// 6N Generalised Velocity
+	Eigen::VectorXf u;
+
+	// 6N Generalized force(incl. torque)
+	Eigen::VectorXf force;
 	
-	float base_timestep_seconds;
-	float remaining_seconds_until_next_timestep;
-	float minimum_nonpentration_velocity;
+	float base_timestep_seconds {1./60.};
+	float remaining_seconds_until_next_timestep {0.f};
+	float minimum_nonpentration_velocity {penetration_epsilon_m * 30};
 
-
-	bool stoped;
-
-	// TODO Active contacts 
-	// size_t contact_count;
-	// contact_list* contacts;
-
-	// TODO: champs de forces, frotements fluides
+	std::vector<struct collider> colliders;
+	std::vector<struct rendering::mesh> mesh;
 };
 
-struct physics_system initialise_system();
+struct ridgidbody ith_body(struct physics_system& system, int i);
 
-void add_body(struct physics_system& system, float mass_kg, Eigen::Matrix3f Inertia_body, Eigen::Vector3f x_initial, struct collider& c);
-void add_imovablbe(struct physics_system& system, Eigen::Vector3f x_initial, collider& c);
-void full_integration_step1(struct ridgidbody& body, float delta_t);
+//struct physics_system initialise_system();
+
+void add_body(struct physics_system& system, float mass_kg, Eigen::Matrix3f Inertia_body, Eigen::Vector3f x_initial, struct collider& c, struct rendering::mesh m);
+void add_imovablbe(struct physics_system& system, Eigen::Vector3f x_initial, collider& c, struct rendering::mesh& mesh);
+
 void integration_step(struct physics_system& system);
 void physys_render_update(struct physics_system& system);
 
