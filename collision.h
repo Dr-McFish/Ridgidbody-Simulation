@@ -15,8 +15,17 @@ struct half_space_colider {
 	Eigen::Vector3f normal; // unitary vector!
 };
 
+struct convex_hull_collider {
+	int number_points;
+	
+	float** points; // dans le referentiel du solide
+	float** points_world; // dans le refferentiell galliean
+};
+
+struct convex_hull_collider make_cube_collider();
+
 // add more when needed
-enum colider_type {COLIDER_SPHERE, COLIDER_HALF_SPACE};
+enum colider_type {COLIDER_SPHERE, COLIDER_HALF_SPACE, COLIDER_CONVEX_HULL};
 
 
 struct collider{
@@ -24,6 +33,7 @@ struct collider{
 	union U{
 		struct sphere_colider sphere_colider; 
 		struct half_space_colider half_space_colider;
+		struct convex_hull_collider convex_hull_collider;
 
 		// https://stackoverflow.com/questions/70428563/unions-default-constructor-is-implicitly-deleted
 		constexpr U() {}

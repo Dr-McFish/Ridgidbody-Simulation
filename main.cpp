@@ -1,5 +1,6 @@
 
 #include <cassert>
+#include <cstdio>
 #include <eigen3/Eigen/Dense>
 #include <eigen3/Eigen/src/Core/Matrix.h>
 #include <polyscope/polyscope.h>
@@ -8,6 +9,7 @@
 #include "rendering.h"
 #include "physics_engine.h"
 
+/*spring scenario*/
 
 int main() {
 	polyscope::init();
@@ -21,39 +23,13 @@ int main() {
 	csphere1.type = COLIDER_SPHERE;
 	csphere1.u.sphere_colider = {.radius = 0.5f};
 
-	struct collider csphere2 = csphere1;
-
-
-	char noms[60];
-	for(int i = 0; i < 12; i++) {
-		noms[2*i] = 'a' + i;
-		noms[2*i +1] = '\0';
-		struct rendering::mesh cube1 = rendering::create_cube(&noms[2*i]);
-		add_body(system, 10, Eigen::Matrix3f::Identity(), Eigen::Vector3f(-2 + 2*(i/ 5), 1.2*(i%5) + 1, 0), csphere1, cube1);\
-	}
+	struct rendering::mesh cube1 = rendering::create_cube("cube");
+	add_body(system, 10, Eigen::Matrix3f::Identity(), Eigen::Vector3f(+3, 0.52, 0), csphere1, cube1);\
 
 	struct collider cplane;
 	cplane.type = COLIDER_HALF_SPACE;
 	cplane.u.half_space_colider = { .normal = Eigen::Vector3f(0,1,0) };
 
-
-	struct collider cplaneN;
-	cplaneN.type = COLIDER_HALF_SPACE;
-	cplaneN.u.half_space_colider = { .normal = Eigen::Vector3f(1,0,0) };
-
-
-	struct collider cplaneS;
-	cplaneS.type = COLIDER_HALF_SPACE;
-	cplaneS.u.half_space_colider = { .normal = Eigen::Vector3f(-1,0,0) };
-
-
-	struct collider cplaneE;
-	cplaneE.type = COLIDER_HALF_SPACE;
-	cplaneE.u.half_space_colider = { .normal = Eigen::Vector3f(0, 0,1) };
-
-	struct collider cplaneW;
-	cplaneW.type = COLIDER_HALF_SPACE;
-	cplaneW.u.half_space_colider = { .normal = Eigen::Vector3f(0, 0,-1) };
 
 	struct rendering::mesh square = rendering::create_square("plane1");
 	square.scale = 5.f;
@@ -67,21 +43,31 @@ int main() {
 
 	//if desired, set up a userCallback to add ImGui UI elements
 
-	system.base_timestep_seconds = 1.f/90.f;
+	system.base_timestep_seconds = 1.f/30.f;
+
+	system.springs.push_back((struct spring) {
+		.body_i = 0,
+		.body_j = 1,
+		.r_i = Eigen::Vector3f(0.f, -0.f, 0.f),
+		.r_j = Eigen::Vector3f(0.f, 1.5f, 0.f),
+		.k = 2.f,
+		.l0 = 0.5,
+	});
+	start_spring_visualisation(system);
 
 	while(true) {
 
 		//full_integration_step1(test_bodyl, 1./60.);
 		//full_integration_step1(system.ridgidbodyies[0], 1./30.);
 		integration_step(system);
-		integration_step(system);
-		integration_step(system);
 		physys_render_update(system);
-		printf("step\n");
+		//printf("step\n");
 	
 		//auto contacts = collision_detectoion(system.ridgidbody_count, system.colliders);
 		//visualise_collisions(system, contacts);
 		//free(contacts);
+
+		printf("%3.3f, %3.3f\n", potential_energy(system), kinetic_energy(system));
 
 		//std::cout << ith_v(system, 0) << std::endl;
 		polyscope::frameTick(); // renders one UI frame, returns immediately

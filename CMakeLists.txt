@@ -73,4 +73,4 @@ add_executable(main.out main.cpp
 target_include_directories(main.out PUBLIC "/usr/local/include")
 
 # Link settings
-target_link_libraries(main.out polyscope)
+target_link_libraries(main.out polyscope opengjk_ce)

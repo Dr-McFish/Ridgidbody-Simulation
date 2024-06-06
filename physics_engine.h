@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "collision.h"
+#include "polyscope/curve_network.h"
 #include "rendering.h"
 
 struct ridgidbody {
@@ -62,12 +63,13 @@ struct physics_system {
 	std::vector<struct collider> colliders;
 	std::vector<struct rendering::mesh> mesh;
 	std::vector<struct spring> springs;
+	polyscope::CurveNetwork* spring_visualisation {NULL};
 };
 Eigen::Vector3f s_ith_x(Eigen::VectorXf& s, int i);
+Eigen::Quaternionf s_ith_Q(Eigen::VectorXf& s, int i);
 
-Eigen::Quaternionf ith_Q(struct physics_system& system, int i);
-Eigen::Vector3f s_ith_x(Eigen::VectorXf& s, int i);
 Eigen::Vector3f ith_x(struct physics_system& system, int i);
+Eigen::Quaternionf ith_Q(struct physics_system& system, int i);
 Eigen::Vector3f ith_v(struct physics_system& system, int i);
 Eigen::Vector3f ith_omega(struct physics_system& system, int i);
 Eigen::Vector3f ith_force(struct physics_system& system, int i);
@@ -75,7 +77,7 @@ Eigen::Vector3f ith_force(struct physics_system& system, int i);
 
 struct ridgidbody ith_body(struct physics_system& system, int i);
 
-//struct physics_system initialise_system();
+void start_spring_visualisation(struct physics_system& system);
 
 void add_body(struct physics_system& system, float mass_kg, Eigen::Matrix3f Inertia_body, Eigen::Vector3f x_initial, struct collider& c, struct rendering::mesh& m);
 void add_imovablbe(struct physics_system& system, Eigen::Vector3f x_initial, collider& c, struct rendering::mesh& mesh);
@@ -86,11 +88,12 @@ void physys_render_update(struct physics_system& system);
 
 void physys_render_update(struct physics_system& system);
 void visualise_collisions(struct physics_system& system, struct contact_list* contacts);
-// struct contact_list* detect_collisions(struct physics_system);
-// void integration_step(struct physics_system& system);
 
-// void physics_step(struct physics_system& system);
 
+//Donnés :
+
+float potential_energy(struct physics_system& system);
+float kinetic_energy(struct physics_system& system);
 
 
 #endif

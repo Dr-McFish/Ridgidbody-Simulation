@@ -19,6 +19,8 @@
 #include <vector>
 #include "algebra_utils.h"
 #include "collision.h"
+#include "glm/fwd.hpp"
+#include "polyscope/curve_network.h"
 #include "rendering.h"
 #include "complementarity_solver.h"
 
@@ -27,8 +29,13 @@ static const Eigen::Vector3f g = 9.81 * Eigen::Vector3f(0, -1, 0);
 static const float restitution_factor = 0.4;
 const float mu_friction_coef = 0.2f;
 
+
+Eigen::Quaternionf s_ith_Q(Eigen::VectorXf& s, int i) {
+	return Eigen::Quaternionf(s(7*i +3), s(7*i +4), s(7*i +5), s(7*i +6) );
+}
+
 Eigen::Quaternionf ith_Q(struct physics_system& system, int i) {
-	return Eigen::Quaternionf(system.s(7*i +3), system.s(7*i +4), system.s(7*i +5), system.s(7*i +6) );
+	return s_ith_Q(system.s, i);
 }
 Eigen::Vector3f s_ith_x(Eigen::VectorXf& s, int i) {
 	return s(Eigen::seq(7*i, 7*i +2));
@@ -98,14 +105,14 @@ void compute_spring_forces(physics_system& system) {
 
 		auto torque_i = system.force(Eigen::seq(6*body_i + 3, 6*body_i +5));
 		auto torque_j = system.force(Eigen::seq(6*body_j + 3, 6*body_j +5));
-		
+
 		Eigen::VectorXf spirng_force_i = - force_magnitude * u;
 
 		f_i += spirng_force_i;
 		f_j += - spirng_force_i;
 
 		torque_i += cross_product(r_i_world, spirng_force_i);
-		torque_j += cross_product(r_j_world, - spirng_force_i);
+		torque_j += cross_product(r_j_world, -spirng_force_i);
 	}
 }
 
@@ -147,11 +154,11 @@ Eigen::SparseMatrix<float> Jmatrix(physics_system& system, std::vector<struct co
 		const Eigen::Vector3f r_ki_x_t1 = cross_product(r_ki, t_k1);
 		const Eigen::Vector3f r_ki_x_t2 = cross_product(r_ki, t_k2);
 
-		const Eigen::Vector3f r_kj = contact_k.contact_pos - ith_x(system, contact_k.bodyj_id);		
+		const Eigen::Vector3f r_kj = contact_k.contact_pos - ith_x(system, contact_k.bodyj_id);
 		const Eigen::Vector3f r_kj_x_n  = cross_product(r_kj, n_k);
 		const Eigen::Vector3f r_kj_x_t1 = cross_product(r_kj, t_k1);
 		const Eigen::Vector3f r_kj_x_t2 = cross_product(r_kj, t_k2);
-		
+
 		Eigen::Matrix3f Ji_klin;
 		Ji_klin << -n_k(0) , -n_k(1) , -n_k(2) ,
 				   -t_k1(0), -t_k1(1), -t_k1(2),
@@ -161,7 +168,7 @@ Eigen::SparseMatrix<float> Jmatrix(physics_system& system, std::vector<struct co
 		Jj_klin << n_k(0) , n_k(1) , n_k(2) ,
 				   t_k1(0), t_k1(1), t_k1(2),
 				   t_k2(0), t_k2(1), t_k2(2);
-		
+
 		Eigen::Matrix3f Ji_kang;
 		Ji_kang << -r_ki_x_n (0), -r_ki_x_n (1), -r_ki_x_n (2),
 				   -r_ki_x_t1(0), -r_ki_x_t1(1), -r_ki_x_t1(2),
@@ -171,7 +178,7 @@ Eigen::SparseMatrix<float> Jmatrix(physics_system& system, std::vector<struct co
 		Jj_kang << r_kj_x_n (0), r_kj_x_n (1), r_kj_x_n (2),
 				   r_kj_x_t1(0), r_kj_x_t1(1), r_kj_x_t1(2),
 				   r_kj_x_t2(0), r_kj_x_t2(1), r_kj_x_t2(2);
-		
+
 		for (int matx = 0; matx < 3; matx++) {
 			for (int maty = 0; maty < 3; maty++) {
 				tripletListJ.push_back(Eigen::Triplet<float>(
@@ -210,7 +217,7 @@ Eigen::SparseMatrix<float> generalizedMass_matrix_inv(physics_system& system) {
 	Eigen::SparseMatrix<float> Minv(6*N, 6*N);
 
 	for(int body_idx = 0; body_idx < N; body_idx++) {
-		
+
 		// diagonal block
 		for (int repeat = 0; repeat < 3; repeat++) {
 			tripletListMinv.push_back(Eigen::Triplet<float>(
@@ -235,7 +242,7 @@ Eigen::SparseMatrix<float> generalizedMass_matrix_inv(physics_system& system) {
 	return Minv;
 }
 
-// 
+//
 Eigen::SparseMatrix<float> S_position_derivative_matrix(physics_system& system) {
 	const int N = system.ridgidbody_count;
 
@@ -245,7 +252,7 @@ Eigen::SparseMatrix<float> S_position_derivative_matrix(physics_system& system) 
 	Eigen::SparseMatrix<float> S(7*N, 6*N);
 
 	for(int body_idx = 0; body_idx < N; body_idx++) {
-		
+
 		// diagonal block
 		for (int repeat = 0; repeat < 3; repeat++) {
 			tripletListS.push_back(Eigen::Triplet<float>(
@@ -321,7 +328,7 @@ Eigen::SparseMatrix<float> S_position_derivative_matrix(physics_system& system) 
 // 	for(int idx = 0; idx < K; idx++) {
 // 		Eigen::Vector3f ri = contact_table[idx].contact_pos - ith_x(system, contact_table->bodyi_id);
 // 		Eigen::Vector3f rj = contact_table[idx].contact_pos - ith_x(system, contact_table->bodyj_id);
-		
+
 // 		// body i on  body j
 // 		Eigen::Vector3f force_ij = lambda(3*idx   ) * contact_table[idx].contact_normal
 // 								 + lambda(3*idx +1) * contact_table[idx].contact_tangent1;
@@ -355,7 +362,7 @@ void add_body(struct physics_system& system, float mass_kg, Eigen::Matrix3f Iner
 	system.u.conservativeResize(6 * system.ridgidbody_count);
 
 	system.force.conservativeResize(6 * system.ridgidbody_count);
-	system.u(Eigen::seq(6*system.ridgidbody_count - 6, 6*system.ridgidbody_count-1)) << 0,0,0 , 0,1,0;
+	system.u(Eigen::seq(6*system.ridgidbody_count - 6, 6*system.ridgidbody_count-1)) << 0,0,0 , 0,0,0;
 
 
 	system.colliders.push_back(collider);
@@ -380,27 +387,6 @@ void add_imovablbe(struct physics_system& system, Eigen::Vector3f x_initial, col
 	system.mesh.push_back(mesh);
 }
 
-// blue - no collisions
-// yellow - in contact
-// red - penetration (bad theoreticly)
-void visualise_collisions(struct physics_system& system, struct contact_list* contacts) {
-	const glm::vec3 blue = glm::vec3(0.1, 0.1, 0.6);
-	const glm::vec3 yellow = glm::vec3(0.6, 0.6, 0.0);
-	const glm::vec3 red = glm::vec3(0.8, 0.1, 0.1);
-	for (size_t i = 0; i < system.ridgidbody_count; i++) {
-		system.mesh[i].mesh->setSurfaceColor(blue);
-	}
-
-	while (contacts != NULL) {
-		const glm::vec3 coloring = contacts->penetration ? red : yellow;
-		//if(contacts->penetration) {printf("red\n");} else {printf("yellow\n");} 
-		system.mesh[contacts->bodyi_id].mesh->setSurfaceColor(coloring);
-		system.mesh[contacts->bodyj_id].mesh->setSurfaceColor(coloring);
-		
-		contacts = contacts->next;
-	}
-}
-
 
 // void initialize_rigidbody(struct ridgidbody& r, float mass_kg, Eigen::Matrix3f Inertia_body, Eigen::Vector3f x_initial) {
 // 	r.inv_mass = 1/mass_kg;
@@ -418,23 +404,14 @@ void visualise_collisions(struct physics_system& system, struct contact_list* co
 // 	r.mesh = NULL;
 // }
 
-void physys_render_update(struct physics_system& system) {
-	for(size_t i = 0; i < system.ridgidbody_count; i++) {
-		// todo
-		Eigen::Quaternionf Q(system.s(7*i +3), system.s(7*i +4), system.s(7*i +5), system.s(7*i +6) );
-		rendering::update_mesh(system.mesh[i], system.s(Eigen::seq(7*i, 7*i +2)), Q);
-	}
-}
 
 // struct physics_system initialise_system() {
 // 	assert(false); // todo
 // 	return system;
 // }
 
-
-
 // returns the lambda vector
-Eigen::VectorXf 	compute_contact_impulses(int K, physics_system& system, Eigen::SparseMatrix<float> J_collision_matrix, Eigen::SparseMatrix<float> Minv, float timestep)
+Eigen::VectorXf compute_contact_impulses(int K, physics_system& system, Eigen::SparseMatrix<float> J_collision_matrix, Eigen::SparseMatrix<float> Minv, float timestep)
 {
 	const Eigen::SparseMatrix<float> J = J_collision_matrix;
 
@@ -511,9 +488,7 @@ bool exists_big_penetration(std::vector<struct contact_list> contact_table) {
 	return false;
 }
 
-void integration_step(struct physics_system& system) {
-	compute_forces(system);
-
+void integration_step_symplectic(struct physics_system& system, float timestep_seconds) {
 	contact_list* contacts = collision_detectoion(system.colliders, system.s);
 	visualise_collisions(system, contacts);
 	std::vector<struct contact_list> contact_table = list_to_array(contacts);
@@ -522,20 +497,20 @@ void integration_step(struct physics_system& system) {
 	Eigen::SparseMatrix<float> Minv = generalizedMass_matrix_inv(system);
 	Eigen::SparseMatrix<float> J = Jmatrix(system, contact_table);
 	const int K = contact_table.size();
-	
+
 	//std::cout << "contact_speeds = \n" << J * system.u << std::endl;
 
-	Eigen::VectorXf lambda = compute_contact_impulses(K, system, J, Minv, system.base_timestep_seconds);
+	Eigen::VectorXf lambda = compute_contact_impulses(K, system, J, Minv, timestep_seconds);
 	//std::cout << "lambda = \n" << lambda << std::endl;
 
 	// Velocity update
 	system.u += (Minv * J.transpose() * lambda);
-	system.u += (system.base_timestep_seconds * Minv * system.force);
+	system.u += (timestep_seconds * Minv * system.force);
 
 	// Position update
 	Eigen::SparseMatrix<float> S = S_position_derivative_matrix(system);
-	system.s = system.s + system.base_timestep_seconds * S * system.u;
-	
+	system.s = system.s + timestep_seconds * S * system.u;
+
 	// Quaternion normalisation
 	for(size_t i = 0; i < system.ridgidbody_count; i++)
 	{
@@ -543,8 +518,181 @@ void integration_step(struct physics_system& system) {
 
 		Q.normalize();
 	}
+}
 
+void integration_step_explicit(struct physics_system& system, float timestep_seconds) {
+	contact_list* contacts = collision_detectoion(system.colliders, system.s);
+	visualise_collisions(system, contacts);
+	std::vector<struct contact_list> contact_table = list_to_array(contacts);
+	//assert(!exists_big_penetration(contact_table));
+
+	Eigen::SparseMatrix<float> Minv = generalizedMass_matrix_inv(system);
+	Eigen::SparseMatrix<float> J = Jmatrix(system, contact_table);
+	const int K = contact_table.size();
+
+	//std::cout << "contact_speeds = \n" << J * system.u << std::endl;
+
+	Eigen::VectorXf lambda = compute_contact_impulses(K, system, J, Minv, timestep_seconds);
+	//std::cout << "lambda = \n" << lambda << std::endl;
+
+	// Position update
+	Eigen::SparseMatrix<float> S = S_position_derivative_matrix(system);
+	system.s = system.s + timestep_seconds * S * system.u;
+
+	// Velocity update
+	system.u += (Minv * J.transpose() * lambda);
+	system.u += (timestep_seconds * Minv * system.force);
+
+	// Quaternion normalisation
+	for(size_t i = 0; i < system.ridgidbody_count; i++)
+	{
+		auto Q = system.s(Eigen::seq(7*i +3, 7*i +6) );
+
+		Q.normalize();
+	}
+}
+
+void integration_step_midpoint(struct physics_system& system, float timestep_seconds) {
+	Eigen::VectorXf u_old = Eigen::VectorXf(system.u);
+	Eigen::VectorXf s_old = Eigen::VectorXf(system.u);
+
+	compute_forces(system);
+	integration_step_explicit(system, timestep_seconds/2);
+	compute_forces(system);
+	
+	system.u = u_old;
+	system.s = s_old;
+	integration_step_explicit(system, timestep_seconds);
+}
+
+void integration_step(struct physics_system& system) {
+
+	// Symplectic
+	compute_forces(system);
+	integration_step_symplectic(system, system.base_timestep_seconds);
+	// ----------
+
+	// Explicit
+	// compute_forces(system);
+	// integration_step_explicit(system, system.base_timestep_seconds);
+	// --------
+
+	// Midpoint method
+	// integration_step_midpoint(system, system.base_timestep_seconds);
+	//
 
 }
 
+
+// blue - no collisions
+// yellow - in contact
+// red - penetration (bad theoreticly)
+void visualise_collisions(struct physics_system& system, struct contact_list* contacts) {
+	const glm::vec3 blue = glm::vec3(0.1, 0.1, 0.6);
+	const glm::vec3 yellow = glm::vec3(0.6, 0.6, 0.0);
+	const glm::vec3 red = glm::vec3(0.8, 0.1, 0.1);
+	for (size_t i = 0; i < system.ridgidbody_count; i++) {
+		system.mesh[i].mesh->setSurfaceColor(blue);
+	}
+
+	while (contacts != NULL) {
+		const glm::vec3 coloring = contacts->penetration ? red : yellow;
+		//if(contacts->penetration) {printf("red\n");} else {printf("yellow\n");}
+		system.mesh[contacts->bodyi_id].mesh->setSurfaceColor(coloring);
+		system.mesh[contacts->bodyj_id].mesh->setSurfaceColor(coloring);
+
+		contacts = contacts->next;
+	}
+}
+
+void physys_render_update(struct physics_system& system) {
+	for(size_t i = 0; i < system.ridgidbody_count; i++) {
+		// todo
+		Eigen::Quaternionf Q(system.s(7*i +3), system.s(7*i +4), system.s(7*i +5), system.s(7*i +6) );
+		rendering::update_mesh(system.mesh[i], system.s(Eigen::seq(7*i, 7*i +2)), Q);
+	}
+
+	if (NULL != system.spring_visualisation) {
+		std::vector<Eigen::Vector3f> nodes;
+
+		for (size_t j = 0; j < system.springs.size();  j ++) {
+				struct spring& spring = system.springs[j];
+				int body_i = spring.body_i ;
+				int body_j = spring.body_j ;
+
+				Eigen::Vector3f r_i_world = ith_Q(system, body_i)._transformVector( spring.r_i );
+				Eigen::Vector3f r_j_world = ith_Q(system, body_j)._transformVector( spring.r_j );
+
+				Eigen::Vector3f spring_end_i = ith_x(system, body_i) + r_i_world;
+				Eigen::Vector3f spring_end_j = ith_x(system, body_j) + r_j_world;
+
+				nodes.push_back(spring_end_i);
+				nodes.push_back(spring_end_j);
+		}
+
+		system.spring_visualisation->updateNodePositions(nodes);
+	}
+}
+
+void start_spring_visualisation(struct physics_system& system) {
+
+	std::vector<Eigen::Vector3f> nodes;
+	std::vector<std::array<size_t, 2>> edges;
+
+	for (size_t j = 0; j < system.springs.size();  j ++) {
+			nodes.push_back(Eigen::Vector3f::Zero());
+			nodes.push_back(Eigen::Vector3f::Zero());
+			edges.push_back({2*j, 2*j+1});
+	}
+
+
+	system.spring_visualisation = polyscope::registerCurveNetwork("Spring Curve network", nodes, edges);
+	// system.spring_visualisation->setRadius(0.2f);
+	system.spring_visualisation->setColor(glm::vec3(0,0,0));
+}
+
+
+float potential_energy(struct physics_system& system)
+{
+	float sum = 0.f;
+
+	// E_pp, Gravité
+	for (size_t i = 0; i < system.ridgidbody_count; i++ ) {
+		if(system.invmass[i] != 0) { // exclude immovable of zero energy
+			sum += (0.5/system.invmass[i]) * s_ith_x(system.s, i).y();
+		}
+	}
+
+	// Ressorts: 
+	for (size_t j = 0; j < system.springs.size(); j++) {
+		struct spring& spring = system.springs[j];
+		int body_i = spring.body_i ;
+		int body_j = spring.body_j ;
+
+		Eigen::Vector3f r_i_world = ith_Q(system, body_i)._transformVector( spring.r_i );
+		Eigen::Vector3f r_j_world = ith_Q(system, body_j)._transformVector( spring.r_j );
+
+		Eigen::Vector3f spring_end_i = ith_x(system, body_i) + r_i_world;
+		Eigen::Vector3f spring_end_j = ith_x(system, body_j) + r_j_world;
+
+		float l = (spring_end_i - spring_end_j).norm();
+		sum += 0.5 * spring.k * (l - spring.l0) * (l - spring.l0); 
+	}
+	return sum;
+}
+
+float kinetic_energy(struct physics_system& system)
+{
+	float sum = 0.f;
+
+	for (size_t i = 0; i < system.ridgidbody_count; i++ ) {
+		if(system.invmass[i] != 0) { // exclude immovable of zero energy
+			sum += (0.5/system.invmass[i]) * ith_v(system, i).squaredNorm();
+
+			Eigen::Vector3f omega = ith_omega(system, i);
+			sum += 0.5 * dot_product(omega, ith_Iinv(system, i).inverse() * omega);
+		}
+	}
+	return sum;
+}
 
