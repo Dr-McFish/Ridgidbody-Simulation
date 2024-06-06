@@ -77,16 +77,52 @@ struct ridgidbody ith_body(struct physics_system& system, int i) {
 	return r;
 }
 
+void compute_spring_forces(physics_system& system) {
+	for (size_t j = 0; j < system.springs.size();  j ++) {
+		struct spring& spring = system.springs[j];
+		int body_i = spring.body_i ;
+		int body_j = spring.body_j ;
+
+		Eigen::Vector3f r_i_world = ith_Q(system, body_i)._transformVector( spring.r_i );
+		Eigen::Vector3f r_j_world = ith_Q(system, body_j)._transformVector( spring.r_j );
+
+		Eigen::Vector3f spring_end_i = ith_x(system, body_i) + r_i_world;
+		Eigen::Vector3f spring_end_j = ith_x(system, body_j) + r_j_world;
+
+		float l = (spring_end_i - spring_end_j).norm();
+		Eigen::Vector3f u = (1.f/l) * (spring_end_i - spring_end_j);
+		float force_magnitude = spring.k * (l - spring.l0);
+
+		auto f_i = system.force(Eigen::seq(6*body_i, 6*body_i +2));
+		auto f_j = system.force(Eigen::seq(6*body_j, 6*body_j +2));
+
+		auto torque_i = system.force(Eigen::seq(6*body_i + 3, 6*body_i +5));
+		auto torque_j = system.force(Eigen::seq(6*body_j + 3, 6*body_j +5));
+		
+		Eigen::VectorXf spirng_force_i = - force_magnitude * u;
+
+		f_i += spirng_force_i;
+		f_j += - spirng_force_i;
+
+		torque_i += cross_product(r_i_world, spirng_force_i);
+		torque_j += cross_product(r_j_world, - spirng_force_i);
+	}
+}
+
+
 void compute_forces(physics_system& system) {
 	for (size_t i = 0; i < system.ridgidbody_count; i++) {
 		auto force_i  = system.force(Eigen::seq(6*i    , 6*i + 2));
 		auto torque_i = system.force(Eigen::seq(6*i + 3, 6*i + 5));
 
-		force_i  = g;
+		force_i = g;
+
 
 		Eigen::Vector3f omega = ith_omega(system, i);
 		torque_i = - cross_product(omega, ith_Iinv(system, i) * omega);
 	}
+
+	compute_spring_forces(system);
 }
 
 Eigen::SparseMatrix<float> Jmatrix(physics_system& system, std::vector<struct contact_list> contact_table){
@@ -405,13 +441,13 @@ Eigen::VectorXf 	compute_contact_impulses(int K, physics_system& system, Eigen::
 
 	struct linear_complementarity_problem lcp;
 
-	std::cout << "J = \n" << J.toDense() << std::endl;
+	// std::cout << "J = \n" << J.toDense() << std::endl;
 
-	std::cout << "M_inv = \n" << Minv.toDense() << std::endl;
+	// std::cout << "M_inv = \n" << Minv.toDense() << std::endl;
 
 	lcp.A = J * Minv * J.transpose();
 
-	std::cout << "A = \n" << lcp.A.toDense() << std::endl;
+	// std::cout << "A = \n" << lcp.A.toDense() << std::endl;
 
 	auto u = system.u;
 	// std::cout << "u = \n" << u << std::endl;
@@ -427,7 +463,7 @@ Eigen::VectorXf 	compute_contact_impulses(int K, physics_system& system, Eigen::
 	//std::cout << "b_bounce = \n" << b_bouce << std::endl;
 
 	lcp.b = J * (u + timestep * (Minv * f_ext) ) + b_bouce;
-	std::cout << "b = \n" << lcp.b << std::endl;
+	// std::cout << "b = \n" << lcp.b << std::endl;
 	//printf("Minv * f_ext ar = \n");
 	//std::cout << J * (timestep *  Minv * f_ext) << std::endl;
 
@@ -455,8 +491,8 @@ Eigen::VectorXf 	compute_contact_impulses(int K, physics_system& system, Eigen::
 	Eigen::VectorXf lambda = pgs_solve(&lcp, 10, mu_friction_coef);
 
 	Eigen::VectorXf w = lcp.A * lambda + lcp.b;
-	printf("w = \n");
-	std::cout << w << std::endl;
+	// printf("w = \n");
+	// std::cout << w << std::endl;
 
 	// for (int i = 0; i < 3*K; i++) {
 	// 	assert(w(i) > -0.1);
@@ -487,10 +523,10 @@ void integration_step(struct physics_system& system) {
 	Eigen::SparseMatrix<float> J = Jmatrix(system, contact_table);
 	const int K = contact_table.size();
 	
-	std::cout << "contact_speeds = \n" << J * system.u << std::endl;
+	//std::cout << "contact_speeds = \n" << J * system.u << std::endl;
 
 	Eigen::VectorXf lambda = compute_contact_impulses(K, system, J, Minv, system.base_timestep_seconds);
-	std::cout << "lambda = \n" << lambda << std::endl;
+	//std::cout << "lambda = \n" << lambda << std::endl;
 
 	// Velocity update
 	system.u += (Minv * J.transpose() * lambda);

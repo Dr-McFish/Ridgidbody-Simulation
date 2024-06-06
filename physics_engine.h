@@ -3,6 +3,7 @@
 
 #include <eigen3/Eigen/Dense>
 #include <eigen3/Eigen/Geometry>
+#include <eigen3/Eigen/src/Core/Matrix.h>
 #include <vector>
 
 #include "collision.h"
@@ -26,6 +27,18 @@ struct ridgidbody {
 
 //void initialize_rigidbody(struct ridgidbody& r, float mass_kg, Eigen::Matrix3f Inertia_body, Eigen::Vector3f x_initial);
 
+struct spring {
+	int body_i;
+	int body_j;
+
+	// points de application dans le refferencielle des solides
+	Eigen::Vector3f r_i;
+	Eigen::Vector3f r_j;
+
+	float k;
+	float l0;
+};
+
 struct physics_system {
 	size_t ridgidbody_count {0};
 
@@ -48,6 +61,7 @@ struct physics_system {
 
 	std::vector<struct collider> colliders;
 	std::vector<struct rendering::mesh> mesh;
+	std::vector<struct spring> springs;
 };
 Eigen::Vector3f s_ith_x(Eigen::VectorXf& s, int i);
 

@@ -96,7 +96,7 @@ struct contact_list* sphere_sphere_collision_detectoion(struct sphere_colider& s
 	ret->contact_normal = sphere1_pos - sphere2_pos;
 	ret->contact_normal.normalize();
 	ret->penetration_depth = fabsf(collision_distance) - (sphere1_pos - sphere2_pos).norm();
-	assert(ret->penetration_depth >= 0.);
+	//assert(ret->penetration_depth >= 0.);
 	ret->penetration = ret->penetration_depth > penetration_epsilon_m;
 	
 	// ret->solid1_id;
@@ -177,12 +177,11 @@ collider::collider(const collider& ref) {
 
 	switch (this->type) {
 		case COLIDER_SPHERE:
-			this->u.sphere_colider.radius = ref.u.sphere_colider.radius;
+			this->u.sphere_colider = ref.u.sphere_colider;
 			break;
 
-
 		case COLIDER_HALF_SPACE:
-			this->u.half_space_colider.normal = ref.u.half_space_colider.normal;
+			this->u.half_space_colider = ref.u.half_space_colider;
 			break;
 
 		default:

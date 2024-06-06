@@ -24,23 +24,13 @@ int main() {
 	struct collider csphere2 = csphere1;
 
 
-	struct rendering::mesh cube1 = rendering::create_cube("cube1");
-	struct rendering::mesh cube2 = rendering::create_cube("cube2");
-	struct rendering::mesh cube3 = rendering::create_cube("cube3");
-	struct rendering::mesh cube4 = rendering::create_cube("cube4");
-	struct rendering::mesh cube5 = rendering::create_cube("cube5");
-	struct rendering::mesh cube6 = rendering::create_cube("cube6");
-	struct rendering::mesh cube7 = rendering::create_cube("cube7");
-
-	add_body(system, 10, Eigen::Matrix3f::Identity(), Eigen::Vector3f(2, 1, 0), csphere1, cube1);
-	add_body(system, 10, Eigen::Matrix3f::Identity(), Eigen::Vector3f(-2, 1, 0), csphere2, cube2);
-	add_body(system, 10, Eigen::Matrix3f::Identity(), Eigen::Vector3f(0, 1, 0), csphere1, cube3);
-	add_body(system, 10, Eigen::Matrix3f::Identity(), Eigen::Vector3f(0, 3, 0), csphere1, cube4);
-	add_body(system, 10, Eigen::Matrix3f::Identity(), Eigen::Vector3f(0, 5, 0), csphere1, cube5);
-	add_body(system, 10, Eigen::Matrix3f::Identity(), Eigen::Vector3f(0, 7, 0), csphere1, cube6);
-	add_body(system, 10, Eigen::Matrix3f::Identity(), Eigen::Vector3f(0, 9, 0), csphere1, cube7);
-
-	
+	char noms[60];
+	for(int i = 0; i < 12; i++) {
+		noms[2*i] = 'a' + i;
+		noms[2*i +1] = '\0';
+		struct rendering::mesh cube1 = rendering::create_cube(&noms[2*i]);
+		add_body(system, 10, Eigen::Matrix3f::Identity(), Eigen::Vector3f(-2 + 2*(i/ 5), 1.2*(i%5) + 1, 0), csphere1, cube1);\
+	}
 
 	struct collider cplane;
 	cplane.type = COLIDER_HALF_SPACE;
@@ -69,20 +59,22 @@ int main() {
 	square.scale = 5.f;
 
 
-	add_imovablbe(system, Eigen::Vector3f(-4, 0, 0), cplaneN, square);
-	add_imovablbe(system, Eigen::Vector3f(+4, 0, 0), cplaneS, square);
-	add_imovablbe(system, Eigen::Vector3f(0, 0, -4), cplaneE, square);
-	add_imovablbe(system, Eigen::Vector3f(0, 0, +4), cplaneW, square);
+	// add_imovablbe(system, Eigen::Vector3f(-4, 0, 0), cplaneN, square);
+	// add_imovablbe(system, Eigen::Vector3f(+4, 0, 0), cplaneS, square);
+	// add_imovablbe(system, Eigen::Vector3f(0, 0, -2), cplaneE, square);
+	// add_imovablbe(system, Eigen::Vector3f(0, 0, +2), cplaneW, square);
 	add_imovablbe(system, Eigen::Vector3f(0, 0, 0), cplane, square);
 
 	//if desired, set up a userCallback to add ImGui UI elements
 
-	
-	
+	system.base_timestep_seconds = 1.f/90.f;
+
 	while(true) {
 
 		//full_integration_step1(test_bodyl, 1./60.);
 		//full_integration_step1(system.ridgidbodyies[0], 1./30.);
+		integration_step(system);
+		integration_step(system);
 		integration_step(system);
 		physys_render_update(system);
 		printf("step\n");

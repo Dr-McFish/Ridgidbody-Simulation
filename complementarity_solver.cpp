@@ -1,3 +1,5 @@
+#include <cassert>
+#include <cmath>
 #include <eigen3/Eigen/Dense>
 #include <eigen3/Eigen/src/Core/Matrix.h>
 #include <eigen3/Eigen/src/Core/util/Constants.h>
@@ -28,6 +30,7 @@ Eigen::VectorXf pgs_solve(struct linear_complementarity_problem* problem, int it
 				lambda(i) -= problem->A.coeff(i, j) * lambda(j);
 			}
 
+			assert(fpclassify(problem->A.coeff(i, i)) != FP_ZERO);
 			lambda(i) = lambda(i) / problem->A.coeff(i, i);
 	
 			int r = i % 3;

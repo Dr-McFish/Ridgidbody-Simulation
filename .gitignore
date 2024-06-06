@@ -3,3 +3,5 @@ CMakeFiles
 build
 .cache
 imgui.ini
+gjk.*
+vec.*
