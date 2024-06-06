@@ -554,7 +554,7 @@ void integration_step_explicit(struct physics_system& system, float timestep_sec
 
 void integration_step_midpoint(struct physics_system& system, float timestep_seconds) {
 	Eigen::VectorXf u_old = Eigen::VectorXf(system.u);
-	Eigen::VectorXf s_old = Eigen::VectorXf(system.u);
+	Eigen::VectorXf s_old = Eigen::VectorXf(system.s);
 
 	compute_forces(system);
 	integration_step_explicit(system, timestep_seconds/2);
@@ -568,8 +568,8 @@ void integration_step_midpoint(struct physics_system& system, float timestep_sec
 void integration_step(struct physics_system& system) {
 
 	// Symplectic
-	compute_forces(system);
-	integration_step_symplectic(system, system.base_timestep_seconds);
+	// compute_forces(system);
+	// integration_step_symplectic(system, system.base_timestep_seconds);
 	// ----------
 
 	// Explicit
@@ -578,7 +578,7 @@ void integration_step(struct physics_system& system) {
 	// --------
 
 	// Midpoint method
-	// integration_step_midpoint(system, system.base_timestep_seconds);
+	integration_step_midpoint(system, system.base_timestep_seconds);
 	//
 
 }

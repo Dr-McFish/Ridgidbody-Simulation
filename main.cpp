@@ -55,7 +55,9 @@ int main() {
 	});
 	start_spring_visualisation(system);
 
-	while(true) {
+	printf("E_c,E_p\n");
+	
+	for (int step = 0; step < 20000; step++) {
 
 		//full_integration_step1(test_bodyl, 1./60.);
 		//full_integration_step1(system.ridgidbodyies[0], 1./30.);
@@ -67,9 +69,9 @@ int main() {
 		//visualise_collisions(system, contacts);
 		//free(contacts);
 
-		printf("%3.3f, %3.3f\n", potential_energy(system), kinetic_energy(system));
+		printf("%3.3f,%3.3f\n", potential_energy(system), kinetic_energy(system));
 
 		//std::cout << ith_v(system, 0) << std::endl;
-		polyscope::frameTick(); // renders one UI frame, returns immediately
+		//polyscope::frameTick(); // renders one UI frame, returns immediately
 	}
 }
