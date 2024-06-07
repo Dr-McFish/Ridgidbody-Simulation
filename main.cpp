@@ -24,7 +24,7 @@ int main() {
 	csphere1.u.sphere_colider = {.radius = 0.5f};
 
 	struct rendering::mesh cube1 = rendering::create_cube("cube");
-	add_body(system, 10, Eigen::Matrix3f::Identity(), Eigen::Vector3f(+3, 0.52, 0), csphere1, cube1);\
+	add_body(system, 10, Eigen::Matrix3f::Identity(), Eigen::Vector3f(+3, 0.50, 0), csphere1, cube1);\
 
 	struct collider cplane;
 	cplane.type = COLIDER_HALF_SPACE;
@@ -35,13 +35,7 @@ int main() {
 	square.scale = 5.f;
 
 
-	// add_imovablbe(system, Eigen::Vector3f(-4, 0, 0), cplaneN, square);
-	// add_imovablbe(system, Eigen::Vector3f(+4, 0, 0), cplaneS, square);
-	// add_imovablbe(system, Eigen::Vector3f(0, 0, -2), cplaneE, square);
-	// add_imovablbe(system, Eigen::Vector3f(0, 0, +2), cplaneW, square);
 	add_imovablbe(system, Eigen::Vector3f(0, 0, 0), cplane, square);
-
-	//if desired, set up a userCallback to add ImGui UI elements
 
 	system.base_timestep_seconds = 1.f/30.f;
 
@@ -50,7 +44,7 @@ int main() {
 		.body_j = 1,
 		.r_i = Eigen::Vector3f(0.f, -0.f, 0.f),
 		.r_j = Eigen::Vector3f(0.f, 1.5f, 0.f),
-		.k = 2.f,
+		.k = 10.f,
 		.l0 = 0.5,
 	});
 	start_spring_visualisation(system);
@@ -58,20 +52,14 @@ int main() {
 	printf("E_c,E_p\n");
 	
 	for (int step = 0; step < 20000; step++) {
-
-		//full_integration_step1(test_bodyl, 1./60.);
-		//full_integration_step1(system.ridgidbodyies[0], 1./30.);
 		integration_step(system);
 		physys_render_update(system);
 		//printf("step\n");
 	
-		//auto contacts = collision_detectoion(system.ridgidbody_count, system.colliders);
-		//visualise_collisions(system, contacts);
-		//free(contacts);
+		float E_p = potential_energy(system);
+		float E_c = kinetic_energy(system);
+		printf("%3.3f,%3.3f,%3.3f\n", E_p, E_c, E_p +E_c);
 
-		printf("%3.3f,%3.3f\n", potential_energy(system), kinetic_energy(system));
-
-		//std::cout << ith_v(system, 0) << std::endl;
-		//polyscope::frameTick(); // renders one UI frame, returns immediately
+		polyscope::frameTick(); // renders one UI frame, returns immediately
 	}
 }

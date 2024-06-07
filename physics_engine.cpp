@@ -27,7 +27,7 @@
 // Gravity
 static const Eigen::Vector3f g = 9.81 * Eigen::Vector3f(0, -1, 0);
 static const float restitution_factor = 0.4;
-const float mu_friction_coef = 0.2f;
+const float mu_friction_coef = 10.f;
 
 
 Eigen::Quaternionf s_ith_Q(Eigen::VectorXf& s, int i) {
@@ -488,7 +488,18 @@ bool exists_big_penetration(std::vector<struct contact_list> contact_table) {
 	return false;
 }
 
-void integration_step_symplectic(struct physics_system& system, float timestep_seconds) {
+void normalize_quaternions(physics_system& system) {
+	for(size_t i = 0; i < system.ridgidbody_count; i++)
+	{
+		auto Q = system.s(Eigen::seq(7*i +3, 7*i +6) );
+
+		Q.normalize();
+	}
+}
+
+Eigen::VectorXf force_impulses(struct physics_system& system, float timestep_seconds) {
+	compute_forces(system);
+
 	contact_list* contacts = collision_detectoion(system.colliders, system.s);
 	visualise_collisions(system, contacts);
 	std::vector<struct contact_list> contact_table = list_to_array(contacts);
@@ -503,82 +514,136 @@ void integration_step_symplectic(struct physics_system& system, float timestep_s
 	Eigen::VectorXf lambda = compute_contact_impulses(K, system, J, Minv, timestep_seconds);
 	//std::cout << "lambda = \n" << lambda << std::endl;
 
+	return  (Minv * J.transpose() * lambda)
+		  + (timestep_seconds * Minv * system.force);
+}
+
+void integration_step_symplectic(struct physics_system& system, float timestep_seconds)
+{
 	// Velocity update
-	system.u += (Minv * J.transpose() * lambda);
-	system.u += (timestep_seconds * Minv * system.force);
+	system.u += force_impulses(system, timestep_seconds);
 
 	// Position update
 	Eigen::SparseMatrix<float> S = S_position_derivative_matrix(system);
 	system.s = system.s + timestep_seconds * S * system.u;
 
-	// Quaternion normalisation
-	for(size_t i = 0; i < system.ridgidbody_count; i++)
-	{
-		auto Q = system.s(Eigen::seq(7*i +3, 7*i +6) );
-
-		Q.normalize();
-	}
+	normalize_quaternions(system);
 }
 
-void integration_step_explicit(struct physics_system& system, float timestep_seconds) {
-	contact_list* contacts = collision_detectoion(system.colliders, system.s);
-	visualise_collisions(system, contacts);
-	std::vector<struct contact_list> contact_table = list_to_array(contacts);
-	//assert(!exists_big_penetration(contact_table));
-
-	Eigen::SparseMatrix<float> Minv = generalizedMass_matrix_inv(system);
-	Eigen::SparseMatrix<float> J = Jmatrix(system, contact_table);
-	const int K = contact_table.size();
-
-	//std::cout << "contact_speeds = \n" << J * system.u << std::endl;
-
-	Eigen::VectorXf lambda = compute_contact_impulses(K, system, J, Minv, timestep_seconds);
-	//std::cout << "lambda = \n" << lambda << std::endl;
+void integration_step_explicit(struct physics_system& system, float timestep_seconds)
+{
+	Eigen::VectorXf impulses = force_impulses(system, timestep_seconds);
 
 	// Position update
 	Eigen::SparseMatrix<float> S = S_position_derivative_matrix(system);
 	system.s = system.s + timestep_seconds * S * system.u;
+	
+	normalize_quaternions(system);
 
 	// Velocity update
-	system.u += (Minv * J.transpose() * lambda);
-	system.u += (timestep_seconds * Minv * system.force);
+	system.u += impulses;
 
-	// Quaternion normalisation
-	for(size_t i = 0; i < system.ridgidbody_count; i++)
-	{
-		auto Q = system.s(Eigen::seq(7*i +3, 7*i +6) );
-
-		Q.normalize();
-	}
 }
 
-void integration_step_midpoint(struct physics_system& system, float timestep_seconds) {
+void integration_step_midpoint(struct physics_system& system, float timestep_seconds)
+{
 	Eigen::VectorXf u_old = Eigen::VectorXf(system.u);
 	Eigen::VectorXf s_old = Eigen::VectorXf(system.s);
 
-	compute_forces(system);
+	Eigen::SparseMatrix<float> J1;
+	int K1;
+	{
+		contact_list* contacts1 = collision_detectoion(system.colliders, system.s);
+		visualise_collisions(system, contacts1);
+		std::vector<struct contact_list> contact_table = list_to_array(contacts1);
+		//assert(!exists_big_penetration(contact_table));
+
+		//Eigen::SparseMatrix<float> Minv1 = generalizedMass_matrix_inv(system);
+		J1 = Jmatrix(system, contact_table);
+		K1 = contact_table.size();
+	}
+
 	integration_step_explicit(system, timestep_seconds/2);
+
 	compute_forces(system);
+
+	contact_list* contacts2 = collision_detectoion(system.colliders, system.s);
+	visualise_collisions(system, contacts2);
+	std::vector<struct contact_list> contact_table = list_to_array(contacts2);
+	//assert(!exists_big_penetration(contact_table));
+
+	Eigen::SparseMatrix<float> Minv2 = generalizedMass_matrix_inv(system);
+	Eigen::SparseMatrix<float> J2 = Jmatrix(system, contact_table);
+	const int K2 = contact_table.size();
+
+	// std::cout << "u = \n" << u << std::endl;
+
+	// std::cout << "f_ext = \n" << f_ext << std::endl;
+	linear_complementarity_problem lcp;
+
+	// bounce
+	Eigen::VectorXf b_bouce = restitution_factor * J2 * system.u;
+	for (int i = 0; i < K1; i++) {
+		b_bouce(3*i + 1) = 0.f;
+		b_bouce(3*i + 2) = 0.f;
+	}
+	//std::cout << "b_bounce = \n" << b_bouce << std::endl;
+	lcp.A = J1 * Minv2 * J2.transpose();
+	lcp.b = J1 * (u_old + timestep_seconds * (Minv2 * system.force) ) + b_bouce;
+	// std::cout << "b = \n" << lcp.b << std::endl;
+	//printf("Minv * f_ext ar = \n");
+	//std::cout << J * (timestep *  Minv * f_ext) << std::endl;
+
+	//printf("Minv * f_ext ar = \n");
+	//std::cout << u << std::endl;
+
+
+	lcp.lambda_min = Eigen::VectorXf(3* K2);
+	lcp.lambda_max = Eigen::VectorXf(3* K2);
+
+	for (int j = 0; j < K2; j++) {
+		lcp.lambda_min(3*j + 0) = 0;
+		lcp.lambda_min(3*j + 1) = -mu_friction_coef * 0; // friction at some point maybe
+		lcp.lambda_min(3*j + 2) = -mu_friction_coef * 0; // friction at some point maybe
+
+		lcp.lambda_max(3*j + 0) = +INFINITY;
+		lcp.lambda_max(3*j + 1) = mu_friction_coef * 0; // friction at some point maybe
+		lcp.lambda_max(3*j + 2) = mu_friction_coef * 0; // friction at some point maybe
+	}
+	// printf("Amatrix = \n");
+	// std::cout << lpc.A.toDense() << std::endl;
+	// printf("b_vec = \n");
+	// std::cout << lpc.b << std::endl;
+
+	Eigen::VectorXf lambda = pgs_solve(&lcp, 10, mu_friction_coef);
+
+	Eigen::VectorXf w = lcp.A * lambda + lcp.b;
 	
-	system.u = u_old;
-	system.s = s_old;
-	integration_step_explicit(system, timestep_seconds);
+
+	Eigen::SparseMatrix<float> S = S_position_derivative_matrix(system);
+	system.s = s_old + timestep_seconds * S * system.u;
+	
+	// Velocity update
+	system.u = u_old + (Minv2 * J2.transpose() * lambda)
+			 		 + (timestep_seconds * Minv2 * system.force);	
+	normalize_quaternions(system);
 }
 
-void integration_step(struct physics_system& system) {
 
+
+
+void integration_step(struct physics_system& system)
+{
 	// Symplectic
-	// compute_forces(system);
 	// integration_step_symplectic(system, system.base_timestep_seconds);
 	// ----------
 
 	// Explicit
-	// compute_forces(system);
-	// integration_step_explicit(system, system.base_timestep_seconds);
+	integration_step_explicit(system, system.base_timestep_seconds);
 	// --------
 
 	// Midpoint method
-	integration_step_midpoint(system, system.base_timestep_seconds);
+	// integration_step_midpoint(system, system.base_timestep_seconds);
 	//
 
 }

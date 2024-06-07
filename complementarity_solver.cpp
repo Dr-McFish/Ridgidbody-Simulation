@@ -12,6 +12,11 @@ float window(float minval, float val, float maxval) {
 
 //returns lambda
 Eigen::VectorXf pgs_solve(struct linear_complementarity_problem* problem, int iterations, float mu) {
+	//assert(problem->A.rows() == problem->A.cols());
+	assert(problem->lambda_max.size() == problem->lambda_min.size());
+	assert(problem->A.cols() == problem->lambda_min.size());
+	assert(problem->A.rows() == problem->b.size());
+
 	const int system_size = problem->lambda_max.size();
 
 	Eigen::VectorXf lambda = Eigen::VectorXf(system_size);
