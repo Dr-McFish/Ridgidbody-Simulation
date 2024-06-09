@@ -70,7 +70,7 @@ add_executable(main.out main.cpp
 						rendering.cpp)
 
 # Include settings
-target_include_directories(main.out PUBLIC "/usr/local/include")
+target_include_directories(main.out PUBLIC "/usr/local/include" "/usr/include/eigen3")
 
 # Link settings
 target_link_libraries(main.out polyscope opengjk_ce)

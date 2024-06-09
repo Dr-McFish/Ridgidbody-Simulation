@@ -20,8 +20,6 @@ Eigen::VectorXf pgs_solve(struct linear_complementarity_problem* problem, int it
 	const int system_size = problem->lambda_max.size();
 
 	Eigen::VectorXf lambda = Eigen::VectorXf(system_size);
-	// auto A_Lower = problem->A.triangularView<Eigen::StrictlyLower>();
-	// auto A_Upper = problem->A.triangularView<Eigen::StrictlyUpper>();
 
 	for (int iteration = 0; iteration < iterations; iteration++) {
 		// Gauss-Siedel

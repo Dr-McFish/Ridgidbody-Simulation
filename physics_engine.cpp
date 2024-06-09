@@ -268,6 +268,8 @@ Eigen::SparseMatrix<float> S_position_derivative_matrix(physics_system& system) 
 			    Q.w(),  Q.z(), -Q.y(),
 			   -Q.z(),  Q.w(),  Q.x(),
 			    Q.y(), -Q.x(),  Q.w();
+		
+		Q_d *= 0.5;
 
 		for (int matx = 0; matx < 4; matx++) {
 			for (int maty = 0; maty < 3; maty++) {
@@ -738,11 +740,10 @@ void integration_step_RK4(struct physics_system& system, float timestep_seconds)
 }
 
 
-
 void integration_step(struct physics_system& system)
 {
 	// Symplectic
-	// integration_step_symplectic(system, system.base_timestep_seconds);
+	integration_step_symplectic(system, system.base_timestep_seconds);
 	// ----------
 
 	// Explicit
@@ -750,10 +751,10 @@ void integration_step(struct physics_system& system)
 	// --------
 
 	// Midpoint method
-	//integration_step_midpoint(system, system.base_timestep_seconds);
+	// integration_step_midpoint(system, system.base_timestep_seconds);
 	//
 
-	integration_step_RK4(system, system.base_timestep_seconds);
+	//integration_step_RK4(system, system.base_timestep_seconds);
 }
 
 

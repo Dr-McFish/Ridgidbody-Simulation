@@ -1,6 +1,7 @@
 #include "rendering.h"
 #include "glm/fwd.hpp"
 #include <eigen3/Eigen/src/Core/Matrix.h>
+#include <igl/readOBJ.h>
 #include <string>
 
 struct rendering::mesh rendering::create_cube(std::string name) {
@@ -28,6 +29,17 @@ struct rendering::mesh rendering::create_cube(std::string name) {
 	cube.mesh = polyscope::registerSurfaceMesh(name, cube.vertices, cube.faces);
 	cube.mesh->setSurfaceColor(glm::vec3(0.1, 0.5, 0.6));
 	return cube;
+}
+
+struct rendering::mesh rendering::create_sphere(std::string name) {
+	struct rendering::mesh sphere;
+	const char* sphere_file = "sphere.obj";
+
+	igl::readOBJ(sphere_file, sphere.vertices, sphere.faces);
+
+	sphere.mesh = polyscope::registerSurfaceMesh(name, sphere.vertices, sphere.faces);
+	sphere.mesh->setSurfaceColor(glm::vec3(0.1, 0.5, 0.6));
+	return sphere;
 }
 
 struct rendering::mesh rendering::create_square(std::string name) {

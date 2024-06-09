@@ -18,6 +18,7 @@ struct mesh{
 };
 
 struct mesh create_cube(std::string name);
+struct mesh create_sphere(std::string name);
 struct mesh create_square(std::string name);
 void update_mesh(rendering::mesh& mesh, Eigen::Vector3f position, Eigen::Quaternionf rotaion);
 
