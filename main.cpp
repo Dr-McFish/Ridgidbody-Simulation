@@ -1,5 +1,6 @@
 
 #include <cassert>
+#include <cstdio>
 #include <eigen3/Eigen/Dense>
 #include <eigen3/Eigen/src/Core/Matrix.h>
 #include <polyscope/polyscope.h>
@@ -29,8 +30,8 @@ int main() {
 	for(int i = 0; i < 12; i++) {
 		noms[2*i] = 'a' + i;
 		noms[2*i +1] = '\0';
-		struct rendering::mesh cube1 = rendering::create_cube(&noms[2*i]);
-		add_body(system, 10, Eigen::Matrix3f::Identity(), Eigen::Vector3f(-2 + 2*(i/ 5), 1.2*(i%5) + 1, 0), csphere1, cube1);\
+		struct rendering::mesh cube1 = rendering::create_sphere(&noms[2*i]);
+		add_body(system, 10, Eigen::Matrix3f::Identity(), Eigen::Vector3f(-2 + 1.2*(i/ 5), 1.2*(i%5) + 1, 0), csphere1, cube1);\
 	}
 
 	struct collider cplane;
@@ -68,17 +69,17 @@ int main() {
 
 	//if desired, set up a userCallback to add ImGui UI elements
 
-	system.base_timestep_seconds = 1.f/90.f;
+	system.base_timestep_seconds = 1.f/30.f;
 
+	int i = 0;
 	while(true) {
-
 		//full_integration_step1(test_bodyl, 1./60.);
 		//full_integration_step1(system.ridgidbodyies[0], 1./30.);
-		integration_step(system);
-		integration_step(system);
+		if( i % 300 < 15) {
 		integration_step(system);
 		physys_render_update(system);
 		printf("step\n");
+		}
 	
 		//auto contacts = collision_detectoion(system.ridgidbody_count, system.colliders);
 		//visualise_collisions(system, contacts);
@@ -86,5 +87,7 @@ int main() {
 
 		//std::cout << ith_v(system, 0) << std::endl;
 		polyscope::frameTick(); // renders one UI frame, returns immediately
+		//getchar();
+		i++;
 	}
 }

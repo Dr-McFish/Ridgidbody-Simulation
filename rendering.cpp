@@ -33,6 +33,7 @@ struct rendering::mesh rendering::create_cube(std::string name) {
 
 struct rendering::mesh rendering::create_sphere(std::string name) {
 	struct rendering::mesh sphere;
+	sphere.scale = 0.5;
 	const char* sphere_file = "sphere.obj";
 
 	igl::readOBJ(sphere_file, sphere.vertices, sphere.faces);

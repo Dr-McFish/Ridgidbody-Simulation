@@ -26,8 +26,8 @@
 
 // Gravity
 static const Eigen::Vector3f g = 9.81 * Eigen::Vector3f(0, -1, 0);
-static const float restitution_factor = 0.4;
-const float mu_friction_coef = 10.f;
+static const float restitution_factor = 0.6f;
+const float mu_friction_coef = 0.2f;
 
 
 Eigen::Quaternionf s_ith_Q(Eigen::VectorXf& s, int i) {
@@ -425,9 +425,9 @@ Eigen::VectorXf compute_contact_impulses(int K, physics_system& system, Eigen::S
 
 	// std::cout << "A = \n" << lcp.A.toDense() << std::endl;
 
-	auto u = system.u;
+	//auto u = system.u;
 	// std::cout << "u = \n" << u << std::endl;
-	auto f_ext = system.force;
+	//auto f_ext = system.force;
 	// std::cout << "f_ext = \n" << f_ext << std::endl;
 
 	// bounce
@@ -438,7 +438,7 @@ Eigen::VectorXf compute_contact_impulses(int K, physics_system& system, Eigen::S
 	}
 	//std::cout << "b_bounce = \n" << b_bouce << std::endl;
 
-	lcp.b = J * (u + timestep * (Minv * f_ext) ) + b_bouce;
+	lcp.b = J * (system.u + timestep * (Minv * system.force) ) + b_bouce;
 	// std::cout << "b = \n" << lcp.b << std::endl;
 	//printf("Minv * f_ext ar = \n");
 	//std::cout << J * (timestep *  Minv * f_ext) << std::endl;
