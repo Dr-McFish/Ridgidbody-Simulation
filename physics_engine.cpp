@@ -1,6 +1,6 @@
 #include "physics_engine.h"
 
-#include <cassert>
+
 #include <cmath>
 #include <cstddef>
 #include <cstdio>
@@ -14,8 +14,6 @@
 #include <eigen3/Eigen/src/Core/util/Constants.h>
 #include <eigen3/Eigen/src/Geometry/Quaternion.h>
 #include <eigen3/Eigen/src/SparseCore/SparseMatrix.h>
-#include <iostream>
-#include <ostream>
 #include <vector>
 #include "algebra_utils.h"
 #include "collision.h"
@@ -27,7 +25,7 @@
 // Gravity
 static const Eigen::Vector3f g = 9.81 * Eigen::Vector3f(0, -1, 0);
 static const float restitution_factor = 0.6f;
-const float mu_friction_coef = 0.2f;
+const float mu_friction_coef = 2.f;
 
 
 Eigen::Quaternionf s_ith_Q(Eigen::VectorXf& s, int i) {
@@ -143,8 +141,6 @@ Eigen::SparseMatrix<float> Jmatrix(physics_system& system, std::vector<struct co
 	for (int k = 0; k < K; k++) {
 		const contact_list& contact_k = contact_table[k];
 
-
-		// if it goes the wrong direction, n_k might be wrong way
 		const Eigen::Vector3f n_k = -contact_k.contact_normal;
 		const Eigen::Vector3f t_k1 = contact_k.contact_tangent1;
 		const Eigen::Vector3f t_k2 = contact_k.contact_tangent2;
@@ -285,71 +281,6 @@ Eigen::SparseMatrix<float> S_position_derivative_matrix(physics_system& system) 
 	return S;
 }
 
-// Eigen::VectorXf u_generlised_velocity(physics_system& system) {
-// 	const int N = system.ridgidbody_count;
-
-// 	// Eigen::VectorXf u(6 * N);
-
-// 	// for (int i = 0; i < N; i++) {
-// 	// 	ridgidbody& body_i = system.ridgidbodyies[i];
-
-// 	// 	u(6*i     + 0) = body_i.x(0);
-// 	// 	u(6*i     + 1) = body_i.x(1);
-// 	// 	u(6*i     + 2) = body_i.x(2);
-// 	// 	u(6*i + 3 + 0) = body_i.omega(0);
-// 	// 	u(6*i + 3 + 1) = body_i.omega(1);
-// 	// 	u(6*i + 3 + 2) = body_i.omega(2);
-// 	// }
-
-// 	return system.u;
-// }
-
-// Eigen::VectorXf forces_ext_generlised(physics_system& system) {
-// 	const int N = system.ridgidbody_count;
-
-// 	Eigen::VectorXf forces(6 * N);
-
-// 	for (int i = 0; i < N; i++) {
-// 		ridgidbody& body_i = system.ridgidbodyies[i];
-
-// 		forces(6*i     + 0) = body_i.force(0);
-// 		forces(6*i     + 1) = body_i.force(1);
-// 		forces(6*i     + 2) = body_i.force(2);
-// 		forces(6*i + 3 + 0) = body_i.torque(0);
-// 		forces(6*i + 3 + 1) = body_i.torque(1);
-// 		forces(6*i + 3 + 2) = body_i.torque(2);
-// 	}
-
-// 	return forces;
-// }
-
-// // calculates and adds on the contact forces based on (wat) solved LPC
-// void lambda_to_forces(physics_system& system, contact_list* contact_table, int K, Eigen::VectorXf lambda) {
-// 	///std::cout << lambda << std::endl;
-
-// 	for(int idx = 0; idx < K; idx++) {
-// 		Eigen::Vector3f ri = contact_table[idx].contact_pos - ith_x(system, contact_table->bodyi_id);
-// 		Eigen::Vector3f rj = contact_table[idx].contact_pos - ith_x(system, contact_table->bodyj_id);
-
-// 		// body i on  body j
-// 		Eigen::Vector3f force_ij = lambda(3*idx   ) * contact_table[idx].contact_normal
-// 								 + lambda(3*idx +1) * contact_table[idx].contact_tangent1;
-// 								 + lambda(3*idx +2) * contact_table[idx].contact_tangent2;
-// 		// force_ji = - force_ij
-
-// 		Eigen::Vector3f torque_i = cross_product(ri, -force_ij);
-// 		Eigen::Vector3f torque_j = cross_product(rj,  force_ij);
-
-// 		int i = contact_table->bodyi_id;
-// 		int j = contact_table->bodyj_id;
-// 		system.force(Eigen::seq(6*i  , 6*i +2)) += -force_ij;
-// 		system.force(Eigen::seq(6*i+3, 6*i +5)) += torque_i;
-
-// 		system.force(Eigen::seq(6*j  , 6*j +2)) += force_ij;
-// 		system.force(Eigen::seq(6*j+3, 6*j +5)) += torque_j;
-// 	}
-// }
-
 
 void add_body(struct physics_system& system, float mass_kg, Eigen::Matrix3f Inertia_body, Eigen::Vector3f x_initial, struct collider& collider, struct rendering::mesh& mesh) {
 	system.ridgidbody_count += 1;
@@ -390,45 +321,11 @@ void add_imovablbe(struct physics_system& system, Eigen::Vector3f x_initial, col
 }
 
 
-// void initialize_rigidbody(struct ridgidbody& r, float mass_kg, Eigen::Matrix3f Inertia_body, Eigen::Vector3f x_initial) {
-// 	r.inv_mass = 1/mass_kg;
-// 	r.Ibody_inv = Inertia_body.inverse();
-
-// 	// State variables
-// 	r.x = x_initial;
-// 	r.Q = Eigen::Quaternionf::Identity();
-// 	// Derived quantities (auxiliary variables)
-
-// 	//  Computed quantities
-// 	r.force =  Eigen::Vector3f::Zero();
-// 	r.torque = Eigen::Vector3f::Zero();
-
-// 	r.mesh = NULL;
-// }
-
-
-// struct physics_system initialise_system() {
-// 	assert(false); // todo
-// 	return system;
-// }
-
 // returns the lambda vector
 Eigen::VectorXf compute_contact_impulses(int K, physics_system& system, Eigen::SparseMatrix<float> J, Eigen::SparseMatrix<float> Minv, float timestep)
 {
 	struct linear_complementarity_problem lcp;
-
-	// std::cout << "J = \n" << J.toDense() << std::endl;
-
-	// std::cout << "M_inv = \n" << Minv.toDense() << std::endl;
-
 	lcp.A = J * Minv * J.transpose();
-
-	// std::cout << "A = \n" << lcp.A.toDense() << std::endl;
-
-	//auto u = system.u;
-	// std::cout << "u = \n" << u << std::endl;
-	//auto f_ext = system.force;
-	// std::cout << "f_ext = \n" << f_ext << std::endl;
 
 	// bounce
 	Eigen::VectorXf b_bouce = restitution_factor * J * system.u;
@@ -436,16 +333,8 @@ Eigen::VectorXf compute_contact_impulses(int K, physics_system& system, Eigen::S
 		b_bouce(3*i + 1) = 0.f;
 		b_bouce(3*i + 2) = 0.f;
 	}
-	//std::cout << "b_bounce = \n" << b_bouce << std::endl;
 
 	lcp.b = J * (system.u + timestep * (Minv * system.force) ) + b_bouce;
-	// std::cout << "b = \n" << lcp.b << std::endl;
-	//printf("Minv * f_ext ar = \n");
-	//std::cout << J * (timestep *  Minv * f_ext) << std::endl;
-
-	//printf("Minv * f_ext ar = \n");
-	//std::cout << u << std::endl;
-
 
 	lcp.lambda_min = Eigen::VectorXf(3* K);
 	lcp.lambda_max = Eigen::VectorXf(3* K);
@@ -459,32 +348,10 @@ Eigen::VectorXf compute_contact_impulses(int K, physics_system& system, Eigen::S
 		lcp.lambda_max(3*j + 1) = mu_friction_coef * 0; // friction at some point maybe
 		lcp.lambda_max(3*j + 2) = mu_friction_coef * 0; // friction at some point maybe
 	}
-	// printf("Amatrix = \n");
-	// std::cout << lpc.A.toDense() << std::endl;
-	// printf("b_vec = \n");
-	// std::cout << lpc.b << std::endl;
 
 	Eigen::VectorXf lambda = pgs_solve(&lcp, 10, mu_friction_coef);
 
-	// Eigen::VectorXf w = lcp.A * lambda + lcp.b;
-	// printf("w = \n");
-	// std::cout << w << std::endl;
-
-	// for (int i = 0; i < 3*K; i++) {
-	// 	assert(w(i) > -0.1);
-	// }
 	return lambda;
-}
-
-bool exists_big_penetration(std::vector<struct contact_list> contact_table) {
-	for (size_t i = 0; i < contact_table.size(); i++)
-	{
-		if (contact_table[i].penetration && contact_table[i].penetration_depth < 0.5f) {
-			return true;
-		}
-	}
-
-	return false;
 }
 
 void normalize_quaternions(physics_system& system) {
@@ -502,16 +369,13 @@ Eigen::VectorXf force_impulses(struct physics_system& system, float timestep_sec
 	contact_list* contacts = collision_detectoion(system.colliders, system.s);
 	visualise_collisions(system, contacts);
 	std::vector<struct contact_list> contact_table = list_to_array(contacts);
-	//assert(!exists_big_penetration(contact_table));
 
 	Eigen::SparseMatrix<float> Minv = generalizedMass_matrix_inv(system);
 	Eigen::SparseMatrix<float> J = Jmatrix(system, contact_table);
 	const int K = contact_table.size();
 
-	//std::cout << "contact_speeds = \n" << J * system.u << std::endl;
 
 	Eigen::VectorXf lambda = compute_contact_impulses(K, system, J, Minv, timestep_seconds);
-	//std::cout << "lambda = \n" << lambda << std::endl;
 
 	return  (Minv * J.transpose() * lambda)
 		  + (timestep_seconds * Minv * system.force);
@@ -575,9 +439,6 @@ void integration_step_midpoint(struct physics_system& system, float timestep_sec
 	Eigen::SparseMatrix<float> J2 = Jmatrix(system, contact_table);
 	const int K2 = contact_table.size();
 
-	// std::cout << "u = \n" << u << std::endl;
-
-	// std::cout << "f_ext = \n" << f_ext << std::endl;
 	linear_complementarity_problem lcp;
 
 	// bounce
@@ -586,15 +447,8 @@ void integration_step_midpoint(struct physics_system& system, float timestep_sec
 		b_bouce(3*i + 1) = 0.f;
 		b_bouce(3*i + 2) = 0.f;
 	}
-	//std::cout << "b_bounce = \n" << b_bouce << std::endl;
 	lcp.A = J2 * Minv2 * J2.transpose();
 	lcp.b = J2 * (u_old + timestep_seconds * (Minv2 * system.force) ) + b_bouce;
-	// std::cout << "b = \n" << lcp.b << std::endl;
-	//printf("Minv * f_ext ar = \n");
-	//std::cout << J * (timestep *  Minv * f_ext) << std::endl;
-
-	//printf("Minv * f_ext ar = \n");
-	//std::cout << u << std::endl;
 
 
 	lcp.lambda_min = Eigen::VectorXf(3* K2);
@@ -609,10 +463,6 @@ void integration_step_midpoint(struct physics_system& system, float timestep_sec
 		lcp.lambda_max(3*j + 1) = mu_friction_coef * 0; // friction at some point maybe
 		lcp.lambda_max(3*j + 2) = mu_friction_coef * 0; // friction at some point maybe
 	}
-	// printf("Amatrix = \n");
-	// std::cout << lpc.A.toDense() << std::endl;
-	// printf("b_vec = \n");
-	// std::cout << lpc.b << std::endl;
 
 	Eigen::VectorXf lambda = pgs_solve(&lcp, 10, mu_friction_coef);
 
@@ -659,7 +509,7 @@ void integration_step_midpoint_II(struct physics_system& system, float timestep_
 }
 
 
-
+// Not working
 void integration_step_RK4(struct physics_system& system, float timestep_seconds)
 {
 	// 1 seul etape de detection collision?
@@ -743,7 +593,7 @@ void integration_step_RK4(struct physics_system& system, float timestep_seconds)
 void integration_step(struct physics_system& system)
 {
 	// Symplectic
-	integration_step_symplectic(system, system.base_timestep_seconds);
+	// integration_step_symplectic(system, system.base_timestep_seconds);
 	// ----------
 
 	// Explicit
@@ -751,16 +601,14 @@ void integration_step(struct physics_system& system)
 	// --------
 
 	// Midpoint method
-	// integration_step_midpoint(system, system.base_timestep_seconds);
+	integration_step_midpoint(system, system.base_timestep_seconds);
 	//
-
-	//integration_step_RK4(system, system.base_timestep_seconds);
 }
 
 
 // blue - no collisions
 // yellow - in contact
-// red - penetration (bad theoreticly)
+// red - penetration (bad)
 void visualise_collisions(struct physics_system& system, struct contact_list* contacts) {
 	const glm::vec3 blue = glm::vec3(0.1, 0.1, 0.6);
 	const glm::vec3 yellow = glm::vec3(0.6, 0.6, 0.0);
@@ -771,7 +619,6 @@ void visualise_collisions(struct physics_system& system, struct contact_list* co
 
 	while (contacts != NULL) {
 		const glm::vec3 coloring = contacts->penetration ? red : yellow;
-		//if(contacts->penetration) {printf("red\n");} else {printf("yellow\n");}
 		system.mesh[contacts->bodyi_id].mesh->setSurfaceColor(coloring);
 		system.mesh[contacts->bodyj_id].mesh->setSurfaceColor(coloring);
 
@@ -821,7 +668,6 @@ void start_spring_visualisation(struct physics_system& system) {
 
 
 	system.spring_visualisation = polyscope::registerCurveNetwork("Spring Curve network", nodes, edges);
-	// system.spring_visualisation->setRadius(0.2f);
 	system.spring_visualisation->setColor(glm::vec3(0,0,0));
 }
 
