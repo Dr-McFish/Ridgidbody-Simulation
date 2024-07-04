@@ -10,24 +10,6 @@
 #include "polyscope/curve_network.h"
 #include "rendering.h"
 
-struct ridgidbody {
-	// Constant quantities
-	float inv_mass;
-	Eigen::Matrix3f Ibody_inv;
-
-	// State variables
-	Eigen::Vector3f x;
-	Eigen::Quaternionf Q;
-	Eigen::Vector3f v;
-	Eigen::Vector3f omega;
-
-	// Derived quantities (auxiliary variables)
-	Eigen::Matrix3f Iinv;
-};
-
-
-//void initialize_rigidbody(struct ridgidbody& r, float mass_kg, Eigen::Matrix3f Inertia_body, Eigen::Vector3f x_initial);
-
 struct spring {
 	int body_i;
 	int body_j;
@@ -74,26 +56,21 @@ Eigen::Vector3f ith_v(struct physics_system& system, int i);
 Eigen::Vector3f ith_omega(struct physics_system& system, int i);
 Eigen::Vector3f ith_force(struct physics_system& system, int i);
 
-
-struct ridgidbody ith_body(struct physics_system& system, int i);
-
 void start_spring_visualisation(struct physics_system& system);
-
-void add_body(struct physics_system& system, float mass_kg, Eigen::Matrix3f Inertia_body, Eigen::Vector3f x_initial, struct collider& c, struct rendering::mesh& m);
-void add_imovablbe(struct physics_system& system, Eigen::Vector3f x_initial, collider& c, struct rendering::mesh& mesh);
-
-void integration_step(struct physics_system& system);
 void physys_render_update(struct physics_system& system);
-
-
 void physys_render_update(struct physics_system& system);
 void visualise_collisions(struct physics_system& system, struct contact_list* contacts);
 
+void add_body(struct physics_system& system, float mass_kg, Eigen::Matrix3f Inertia_body, 
+			  Eigen::Vector3f x_initial, struct collider& c, struct rendering::mesh& m);
+void add_imovablbe(struct physics_system& system, Eigen::Vector3f x_initial, 
+					collider& c, struct rendering::mesh& mesh);
+
+void integration_step(struct physics_system& system);
 
 //Donnés :
 
 float potential_energy(struct physics_system& system);
 float kinetic_energy(struct physics_system& system);
-
 
 #endif
