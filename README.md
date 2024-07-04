@@ -2,9 +2,7 @@
 
 Ridgidbody simmulation project I made. The final product is essentially just from the papper:
 
-```
-KENNY ERLEBEN : Velocity-Based Shock Propagation for Multibody Dynamics Animation : ACM Transactions on Graphics, Vol. 26, 2007
-```
+> KENNY ERLEBEN : Velocity-Based Shock Propagation for Multibody Dynamics Animation : ACM Transactions on Graphics, Vol. 26, 2007
 
 It also comes with with a realtime vissualization app based on the [polyscope](https://polyscope.run/) library
 
