@@ -18,17 +18,23 @@ It also comes with with a realtime vissualization app based on the [polyscope](h
 * Cmake
 
 Get the code:
+```
 > git clone --recurse-submodules https://github.com/Dr-McFish/Ridgidbody-Simulation.git
+```
 
 Build:
+```
 > cd Ridgidbody-Simulation
 > cmake -DCMAKE_BUILD_TYPE=DEBUG -S . -B build
 > cd build
 > make
+```
 
 Run the vissualiser app:
+```
 > cd ..
 > ./build/bin/main.out
+```
 
 ## Written material(in French)
 
