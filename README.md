@@ -11,7 +11,7 @@ It also comes with with a realtime vissualization app based on the [polyscope](h
 
 ## Compilation instructions
 
-### Preraquisites
+### Prerequisites
 
 * Eigen
 * Polyscope(gets downloaded automaticly through git submodules)
