@@ -1,5 +1,8 @@
 # Ridgidbody Simulation
 
+![SIM1](https://github.com/Dr-McFish/Ridgidbody-Simulation/assets/61105022/30a7202e-0671-476b-b94e-d1cace10bf82)
+
+
 Ridgidbody simmulation project I made. The final product is essentially just from the papper:
 
 > KENNY ERLEBEN : Velocity-Based Shock Propagation for Multibody Dynamics Animation : ACM Transactions on Graphics, Vol. 26, 2007
