@@ -39,8 +39,8 @@ Run the vissualiser app:
 
 ## Written material(in French)
 
-[Slides](https://github.com/user-attachments/files/16102983/Anonymized_TIPE_slides-5.pdf)
-[MCOT](https://github.com/user-attachments/files/16102995/Mcot_Anonymized.pdf)
+* [Slides](https://github.com/user-attachments/files/16102983/Anonymized_TIPE_slides-5.pdf)
+* [MCOT](https://github.com/user-attachments/files/16102995/Mcot_Anonymized.pdf)
 
 
 ### Future plans:
